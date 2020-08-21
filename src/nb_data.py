@@ -236,3 +236,17 @@ class DatasetBuilder:
             transformer = partial(self.transform_factory[dataset_type]['factory'], transforms=transform_getter)
             transformers[dataset_type] = transformer
         return transformers
+
+def build_dataloader(cfg, dataset, sampler=None, batch_size=1, num_workers=0, drop_last=False, pin=False):
+    collate_fn=None
+    data_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=(sampler is None),
+        num_workers=num_workers,
+        pin_memory=pin,
+        drop_last=drop_last,
+        collate_fn=collate_fn,
+        sampler=sampler,
+    )
+    return data_loader
