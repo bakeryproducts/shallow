@@ -43,7 +43,7 @@ class ImageDataset(Dataset):
     def load_item(self, idx):
         img_path = self.files[idx]
         img = cv2.imread(str(img_path))
-        #img = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
+        img = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
         return img
 
 class PairDataset:
