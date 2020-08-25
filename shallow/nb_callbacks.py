@@ -4,9 +4,11 @@
 #################################################
 # file to edit: dev_nb/callbacks.ipynb
 
-from nb_utils import GetAttr
+from . import nb_utils
 
-class Callback(GetAttr): _default='learner'
+#from nb_utils import GetAttr
+
+class Callback(nb_utils.GetAttr): _default='learner'
 
 class SetupLearnerCB(Callback):
     def before_batch(self):

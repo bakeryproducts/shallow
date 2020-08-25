@@ -1,2 +1,6 @@
 test_data
 **/*.ipynb_*
+**/__py*
+dist
+shallow.*
+build

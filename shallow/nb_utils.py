@@ -38,6 +38,8 @@ def listify(o):
     if isinstance(o, Iterable): return list(o)
     return [o]
 
+def setify(o): return o if isinstance(o,set) else set(listify(o))
+
 def store_attr(self, ll):
     self.__dict__.update(ll)
     del self.__dict__['self']

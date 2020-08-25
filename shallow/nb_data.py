@@ -13,13 +13,14 @@ from tqdm.notebook import tqdm
 import os
 import cv2
 import yaml
+from PIL import Image
 import numpy as np
 import albumentations as albu
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import ConcatDataset as ConcatDataset
 
-import nb_utils
+from . import nb_utils
 
 
 class Dataset:
@@ -27,6 +28,7 @@ class Dataset:
         self.pattern = pattern
         self.root = Path(root)
         files = list(self.root.rglob(self.pattern))
+        assert len(files) > 0, 'There is no matching files'
         self.files = sorted(files)
 
     def load_item(self, idx):
@@ -39,11 +41,16 @@ class Dataset:
     def __len__(self):
         return len(self.files)
 
+#     def __add__(self, other):
+#         return ConcatDataset([self, other])
+
+
 class ImageDataset(Dataset):
     def load_item(self, idx):
         img_path = self.files[idx]
-        img = cv2.imread(str(img_path))
-        img = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
+        #img = cv2.imread(str(img_path))
+        #img = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
+        img = Image.open(str(img_path))
         return img
 
 class PairDataset:
