@@ -4,3 +4,4 @@ test_data
 dist
 shallow.*
 build
+**/*.swp
