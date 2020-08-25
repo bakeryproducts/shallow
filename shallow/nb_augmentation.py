@@ -37,14 +37,21 @@ def crop_aug(func):
     def crop(*args, **kwargs):
         aug_func = func(*args, **kwargs)
         size = kwargs['size']
-        crop_aug = albu.OneOf([
+        _crop_aug = albu.OneOf([
                 #albu.RandomResizedCrop(size, size, scale=(0.05, 0.4)),
                 albu.RandomCrop(size,size)
                 #albu.CropNonEmptyMaskIfExists(size, size)
             ], p=1)
-        aug = albu.Compose([crop_aug, aug_func])
+        aug = albu.Compose([_crop_aug, aug_func])
         return aug
     return crop
+
+def bbox_aug(func, box_format, min_area, min_visibility):
+    def bbox(*args, **kwargs):
+        aug_func = func(*args, **kwargs)
+        _bbox_aug = albu.BboxParams(format=box_format, min_area=min_area, min_visibility=min_visibility)
+        return albu.Compose([aug_func], _bbox_aug)
+    return bbox
 
 def to_gpu(t, device):
     return t.to(device)
@@ -123,10 +130,7 @@ def get_hard(*, size):
                             albu.OneOf([albu.RandomFog(fog_coef_lower=0.01, fog_coef_upper=0.3, p=0.1), albu.NoOp()]),
                         ])
 
-def get_aug(aug_type="val", size=256):
-    """aug_type (str): one of `val`, `test`, `light`, `medium`, `hard`
-       size (int): final size of the crop"""
-
+def _get_types():
     types = {
         "val" : get_val,
         "test" : get_test,
@@ -135,5 +139,14 @@ def get_aug(aug_type="val", size=256):
         "medium" : get_medium,
         "hard": get_hard,
     }
+    return types
 
+def get_aug(aug_type="val", size=256):
+    """aug_type (str): one of `val`, `test`, `light`, `medium`, `hard`
+       size (int): final size of the crop"""
+    types = _get_types()
+    return types[aug_type](size=size)
+
+def get_bbox_aug(aug_type="val", size=256, min_area=0, min_visibility=0):
+    types = {k:bbox_aug(v, 'pascal_voc', min_area, min_visibility) for k,v in _get_types().items()}
     return types[aug_type](size=size)
