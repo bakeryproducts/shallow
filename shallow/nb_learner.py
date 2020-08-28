@@ -7,6 +7,8 @@
 import torch
 import torch.nn as nn
 
+from shallow import nb_utils
+
 class Learner:
     def __init__(self, model, dls, loss_func, lr, cbs, opt_func):
         store_attr(self, locals())
@@ -42,4 +44,4 @@ class Learner:
         self('after_fit')
 
     def __call__(self, name):
-        for cb in self.cbs: getattr(cb, name, None)()
+        for cb in self.cbs: getattr(cb, name, nb_utils.noop)()

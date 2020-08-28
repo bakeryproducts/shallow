@@ -31,6 +31,14 @@ def mp_func_gen(foo, args, n):
             results.extend(r)
     return results
 
+def noop (x=None, *args, **kwargs):
+    "Do nothing"
+    return x
+
+def noops(self, x=None, *args, **kwargs):
+    "Do nothing (method)"
+    return x
+
 def listify(o):
     if o is None: return []
     if isinstance(o, list): return o

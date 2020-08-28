@@ -4,11 +4,18 @@
 #################################################
 # file to edit: dev_nb/callbacks.ipynb
 
-from . import nb_utils
-
+from shallow import nb_utils
 #from nb_utils import GetAttr
 
 class Callback(nb_utils.GetAttr): _default='learner'
+
+class ParamScheduler(Callback):
+    def __init__(self, phase, pname, sched_func):
+        self.pname, self.sched_func = pname, sched_func
+        setattr(self, phase, self.set_param)
+
+    def set_param(self):
+        setattr(self.learner, self.pname, self.sched_func(self.n_epochs/self.epochs))
 
 class SetupLearnerCB(Callback):
     def before_batch(self):

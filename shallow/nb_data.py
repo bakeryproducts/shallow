@@ -244,8 +244,16 @@ class DatasetBuilder:
             transformers[dataset_type] = transformer
         return transformers
 
-def build_dataloader(cfg, dataset, sampler=None, batch_size=1, num_workers=0, drop_last=False, pin=False):
+def build_dataloaders(datasets, samplers=None, batch_size=1, num_workers=0, drop_last=False, pin=False):
+    dls = {}
+    for kind, dataset in datasets.items():
+        sampler = samplers[kind] if samplers is not None else None
+        dls[kind] = create_dataloader(dataset, sampler, batch_size, num_workers, drop_last, pin)
+    return dls
+
+def create_dataloader(dataset, sampler=None, batch_size=1, num_workers=0, drop_last=False, pin=False):
     collate_fn=None
+
     data_loader = DataLoader(
         dataset,
         batch_size=batch_size,
