@@ -4,6 +4,8 @@
 #################################################
 # file to edit: dev_nb/callbacks.ipynb
 
+from functools import partial
+
 from shallow import nb_utils
 
 #from nb_utils import GetAttr

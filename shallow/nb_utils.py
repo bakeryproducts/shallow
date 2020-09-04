@@ -7,6 +7,7 @@
 import multiprocessing as mp
 from contextlib import contextmanager
 from collections.abc import Iterable
+from functools import partial, reduce
 
 from tqdm.notebook import tqdm
 
@@ -39,6 +40,12 @@ def noops(self, x=None, *args, **kwargs):
     "Do nothing (method)"
     return x
 
+def compose2(f, g):
+    return lambda *a, **kw: f(g(*a, **kw))
+
+def compose(*fs):
+    return reduce(compose2, fs)
+
 def listify(o):
     if o is None: return []
     if isinstance(o, list): return o
@@ -52,11 +59,9 @@ def store_attr(self, ll):
     self.__dict__.update(ll)
     del self.__dict__['self']
 
-
 def custom_dir(c, add:list):
     "Implement custom `__dir__`, adding `add` to `cls`"
     return dir(type(c)) + list(c.__dict__.keys()) + add
-
 
 class GetAttr:
     "Inherit from this to have all attr accesses in `self._xtra` passed down to `self.default`"
@@ -74,3 +79,21 @@ class GetAttr:
     def __dir__(self): return custom_dir(self,self._dir())
 #     def __getstate__(self): return self.__dict__
     def __setstate__(self,data): self.__dict__.update(data)
+
+
+class ListContainer():
+    def __init__(self, items): self.items = listify(items)
+    def __getitem__(self, idx):
+        if isinstance(idx, (int,slice)): return self.items[idx]
+        if isinstance(idx[0],bool):
+            assert len(idx)==len(self) # bool mask
+            return [o for m,o in zip(idx,self.items) if m]
+        return [self.items[i] for i in idx]
+    def __len__(self): return len(self.items)
+    def __iter__(self): return iter(self.items)
+    def __setitem__(self, i, o): self.items[i] = o
+    def __delitem__(self, i): del(self.items[i])
+    def __repr__(self):
+        res = f'{self.__class__.__name__} ({len(self)} items)\n{self.items[:10]}'
+        if len(self)>10: res = res[:-1]+ '...]'
+        return res

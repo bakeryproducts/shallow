@@ -20,16 +20,19 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import ConcatDataset as ConcatDataset
 
-from . import nb_utils
+from shallow import nb_utils
 
 
 class Dataset:
-    def __init__(self, root, pattern):
+    def __init__(self, root, pattern, filter_fn=nb_utils.noop):
         self.pattern = pattern
         self.root = Path(root)
-        files = list(self.root.rglob(self.pattern))
-        assert len(files) > 0, 'There is no matching files'
-        self.files = sorted(files)
+        files = list(self.root.glob(self.pattern))
+        assert len(files) > 0, 'There is no matching files!'
+        files = sorted(files)
+        self.files = filter_fn(files)
+        assert len(self.files) > 0, 'Filtered out all files!'
+        self.files_map = {f.with_suffix('').name:i for i,f in enumerate(self.files)}
 
     def load_item(self, idx):
         raise NotImplementedError
@@ -56,6 +59,9 @@ class ImageDataset(Dataset):
 class PairDataset:
     def __init__(self, ds1, ds2):
         self.ds1, self.ds2 = ds1, ds2
+        self.check_len()
+
+    def check_len(self):
         assert len(self.ds1) == len(self.ds2)
 
     def __getitem__(self, idx):
@@ -198,11 +204,52 @@ def extend_dataset(ds, data_field, extend_factories):
             ds = factory(ds, **args)
     return ds
 
-def extend_all_datasets(cfg, datasets, extend_factories):
+def create_extensions(cfg, datasets, extend_factories):
     extended_datasets = {}
     for kind, ds in datasets.items():
         extended_datasets[kind] = extend_dataset(ds, cfg.DATA[kind], extend_factories)
     return extended_datasets
+
+
+def create_datasets(cfg,
+                   catalog,
+                   dataset_factories,
+                   dataset_types=['TRAIN', 'VALID', 'TEST']):
+
+    def _create_dataset_fact(ds):
+        dataset_attrs = catalog.get(ds)
+        factory = dataset_factories[dataset_attrs['factory']]
+        return factory(**dataset_attrs['args'])
+
+    converted_datasets = {}
+    for dataset_type in dataset_types:
+        data_field = cfg.DATA[dataset_type]
+        datasets_strings = data_field.DATASETS
+
+        if datasets_strings:
+            datasets = [_create_dataset_fact(ds) for ds in datasets_strings]
+            ds = ConcatDataset(datasets) if len(datasets)>1 else datasets[0]
+            converted_datasets[dataset_type] = ds
+    return converted_datasets
+
+
+def create_transforms(cfg,
+                      transform_factories,
+                      dataset_types=['TRAIN', 'VALID', 'TEST']):
+    transformers = {}
+    for dataset_type in dataset_types:
+        aug_type = cfg.TRANSFORMERS[dataset_type]['AUG']
+        args={
+            'aug_type':aug_type,
+            'size':cfg.TRANSFORMERS.CROP_SIZE
+        }
+        transform_getter = transform_factories[dataset_type]['transform_getter'](**args)
+        transformer = partial(transform_factories[dataset_type]['factory'], transforms=transform_getter)
+        transformers[dataset_type] = transformer
+    return transformers
+
+def apply_transforms_datasets(datasets, transforms):
+    return [transforms[dataset_type](dataset) for dataset_type, dataset in datasets.items()]
 
 class DatasetBuilder:
     def __init__(self, cfg,
