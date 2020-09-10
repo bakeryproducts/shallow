@@ -28,10 +28,10 @@ class Dataset:
         self.pattern = pattern
         self.root = Path(root)
         files = list(self.root.glob(self.pattern))
-        assert len(files) > 0, 'There is no matching files!'
+        assert len(files) > 0, ('There is no matching files!', self.root)
         files = sorted(files)
         self.files = filter_fn(files)
-        assert len(self.files) > 0, 'Filtered out all files!'
+        assert len(self.files) > 0, ('Filtered out all files!', self.root)
         self.files_map = {f.with_suffix('').name:i for i,f in enumerate(self.files)}
 
     def load_item(self, idx):
@@ -114,17 +114,22 @@ class CachingDataset:
 
 
 class PreloadingDataset:
-    def __init__(self, dataset, num_proc=False):
+    def __init__(self, dataset, num_proc=False, progress=None):
         self.dataset = dataset
         self.num_proc = num_proc
+        self.progress = progress
         if self.num_proc:
-            self.data = nb_utils.mp_func_gen(self.preload_data, range(len(self.dataset)) , self.num_proc)
+            self.data = nb_utils.mp_func_gen(self.preload_data,
+                                             range(len(self.dataset)),
+                                             n=self.num_proc,
+                                             progress=progress)
         else:
-            self.data = self.preload_data((self.dataset, range(len(self.dataset))))
+            self.data = self.preload_data(range(len(self.dataset)))
 
     def preload_data(self, args):
         idxs = args
         data = []
+        if self.progress is not None and not self.num_proc: idxs = self.progress(idxs)
         for i in idxs:
             r = self.dataset.__getitem__(i)
             data.append(r)
@@ -211,15 +216,15 @@ def create_extensions(cfg, datasets, extend_factories):
     return extended_datasets
 
 
+def _create_dataset_fact(catalog, ds, dataset_factories):
+    dataset_attrs = catalog.get(ds)
+    factory = dataset_factories[dataset_attrs['factory']]
+    return factory(**dataset_attrs['args'])
+
 def create_datasets(cfg,
                    catalog,
                    dataset_factories,
                    dataset_types=['TRAIN', 'VALID', 'TEST']):
-
-    def _create_dataset_fact(ds):
-        dataset_attrs = catalog.get(ds)
-        factory = dataset_factories[dataset_attrs['factory']]
-        return factory(**dataset_attrs['args'])
 
     converted_datasets = {}
     for dataset_type in dataset_types:
@@ -227,11 +232,10 @@ def create_datasets(cfg,
         datasets_strings = data_field.DATASETS
 
         if datasets_strings:
-            datasets = [_create_dataset_fact(ds) for ds in datasets_strings]
+            datasets = [_create_dataset_fact(catalog, ds, dataset_factories) for ds in datasets_strings]
             ds = ConcatDataset(datasets) if len(datasets)>1 else datasets[0]
             converted_datasets[dataset_type] = ds
     return converted_datasets
-
 
 def create_transforms(cfg,
                       transform_factories,
@@ -249,56 +253,17 @@ def create_transforms(cfg,
     return transformers
 
 def apply_transforms_datasets(datasets, transforms):
-    return [transforms[dataset_type](dataset) for dataset_type, dataset in datasets.items()]
+    return {dataset_type:transforms[dataset_type](dataset) for dataset_type, dataset in datasets.items()}
 
-class DatasetBuilder:
-    def __init__(self, cfg,
-                       catalog,
-                       dataset_factories,
-                       transform_factory,
-                       dataset_types=['TRAIN', 'VALID', 'TEST']):
-        nb_utils.store_attr(self, locals())
 
-    def build_datasets(self):
-        transformers = self._build_transformers()
-        converted_datasets = {}
-        for dataset_type in self.dataset_types:
-            data_field = self.cfg.DATA[dataset_type]
-            datasets_strings = data_field.DATASETS
-
-            if datasets_strings:
-                datasets = [self._create_dataset_fact(ds) for ds in datasets_strings]
-                ds = ConcatDataset(datasets) if len(datasets)>1 else datasets[0]
-                ds = transformers[dataset_type](ds)
-                converted_datasets[dataset_type] = ds
-        return converted_datasets
-
-    def _create_dataset_fact(self, ds):
-        dataset_attrs = self.catalog.get(ds)
-        factory = self.dataset_factories[dataset_attrs['factory']]
-        return factory(**dataset_attrs['args'])
-
-    def _build_transformers(self):
-        transformers = {}
-        for dataset_type in self.dataset_types:
-            aug_type = self.cfg.TRANSFORMERS[dataset_type]['AUG']
-            args={
-                'aug_type':aug_type,
-                'size':self.cfg.TRANSFORMERS.CROP_SIZE
-            }
-            transform_getter = self.transform_factory[dataset_type]['transform_getter'](**args)
-            transformer = partial(self.transform_factory[dataset_type]['factory'], transforms=transform_getter)
-            transformers[dataset_type] = transformer
-        return transformers
-
-def build_dataloaders(datasets, samplers=None, batch_size=1, num_workers=0, drop_last=False, pin=False):
+def build_dataloaders(datasets, samplers=None, batch_size=1, num_workers=1, drop_last=False, pin=False):
     dls = {}
     for kind, dataset in datasets.items():
         sampler = samplers[kind] if samplers is not None else None
         dls[kind] = create_dataloader(dataset, sampler, batch_size, num_workers, drop_last, pin)
     return dls
 
-def create_dataloader(dataset, sampler=None, batch_size=1, num_workers=0, drop_last=False, pin=False):
+def create_dataloader(dataset, sampler=None, batch_size=1, num_workers=1, drop_last=False, pin=False):
     collate_fn=None
 
     data_loader = DataLoader(

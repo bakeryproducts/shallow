@@ -9,9 +9,11 @@ import torch.nn as nn
 
 from shallow import nb_utils
 
+class CancelFitException(Exception): pass
+
 class Learner:
-    def __init__(self, model, dls, loss_func, lr, cbs, opt_func):
-        store_attr(self, locals())
+    def __init__(self, model, dls, loss_func, lr, cbs, opt_func, progress_bar):
+        nb_utils.store_attr(self, locals())
         for cb in self.cbs: cb.learner = self
 
     def one_batch(self):
@@ -20,26 +22,29 @@ class Learner:
         self.preds = self.model(xb)
         self.loss = self.loss_func(self.preds, yb)
         if self.model.training:
-            self.loss.backward()
-            self.opt.step()
+            self('train_step')
+
         self('after_batch')
 
     def one_epoch(self, train):
         self.model.training = train
         self('before_epoch')
-        dl = self.dls.train if train else self.dls.valid
-        for self.num,self.batch in enumerate(progress_bar(dl, leave=False)):
+        dl = self.dls.TRAIN if train else self.dls.VALID
+        for self.num, self.batch in enumerate(self.progress_bar.child_bar(dl, leave=False)):
             self.one_batch()
         self('after_epoch')
 
     def fit(self, n_epochs):
         self('before_fit')
-        self.opt = self.opt_func(self.model.parameters(), self.lr)
+        self.opt = self.opt_func()
         self.n_epochs = n_epochs
+        self.progress_bar.master_bar, self.progress_bar.child_bar = self.progress_bar.init(range(self.n_epochs))
         try:
-            for self.epoch in range(self.n_epochs):
+            for self.epoch in self.progress_bar.master_bar:
                 self.one_epoch(True)
-                self.one_epoch(False)
+                #self.one_epoch(False)
+                #self.progress_bar.master_bar.write(f'Finished loop {self.epoch}.')
+
         except CancelFitException: pass
         self('after_fit')
 

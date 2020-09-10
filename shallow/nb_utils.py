@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from collections.abc import Iterable
 from functools import partial, reduce
 
+from torchvision.transforms import ToPILImage
 from tqdm.notebook import tqdm
 
 @contextmanager
@@ -23,12 +24,14 @@ def mp_func(foo, args, n):
         res = pool.map(foo, args_chunks)
     return [ri for r in res for ri in r]
 
-def mp_func_gen(foo, args, n):
+
+def mp_func_gen(foo, args, n, progress=None):
     args_chunks = [args[i:i + n] for i in range(0, len(args), n)]
     results = []
     with poolcontext(processes=n) as pool:
         gen = pool.imap(foo, args_chunks)
-        for r in tqdm(gen, total=len(args_chunks)):
+        if progress is not None: gen = progress(gen, total=len(args_chunks))
+        for r in gen:
             results.extend(r)
     return results
 
@@ -46,6 +49,8 @@ def compose2(f, g):
 def compose(*fs):
     return reduce(compose2, fs)
 
+def tpi(i): return ToPILImage()(i)
+
 def listify(o):
     if o is None: return []
     if isinstance(o, list): return o
@@ -54,6 +59,11 @@ def listify(o):
     return [o]
 
 def setify(o): return o if isinstance(o,set) else set(listify(o))
+
+class AttrDict(dict):
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
 
 def store_attr(self, ll):
     self.__dict__.update(ll)
