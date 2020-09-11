@@ -245,7 +245,7 @@ def create_transforms(cfg,
         aug_type = cfg.TRANSFORMERS[dataset_type]['AUG']
         args={
             'aug_type':aug_type,
-            'size':cfg.TRANSFORMERS.CROP_SIZE
+            'transforms_cfg':cfg.TRANSFORMERS
         }
         transform_getter = transform_factories[dataset_type]['transform_getter'](**args)
         transformer = partial(transform_factories[dataset_type]['factory'], transforms=transform_getter)
