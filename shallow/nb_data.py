@@ -7,8 +7,7 @@
 from pathlib import Path
 from functools import lru_cache, partial
 
-# from tqdm.auto import tqdm
-from tqdm.notebook import tqdm
+from tqdm.auto import tqdm
 
 import os
 import cv2

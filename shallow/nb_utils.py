@@ -4,13 +4,14 @@
 #################################################
 # file to edit: dev_nb/utils.ipynb
 
+import os
 import multiprocessing as mp
 from contextlib import contextmanager
 from collections.abc import Iterable
 from functools import partial, reduce
 
 from torchvision.transforms import ToPILImage
-from tqdm.notebook import tqdm
+from tqdm.auto import tqdm
 
 @contextmanager
 def poolcontext(*args, **kwargs):
@@ -59,6 +60,8 @@ def listify(o):
     return [o]
 
 def setify(o): return o if isinstance(o,set) else set(listify(o))
+
+def in_docker(): return os.path.exists('/.dockerenv')
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
