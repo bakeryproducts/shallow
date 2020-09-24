@@ -38,9 +38,9 @@ def crop_aug(func):
         aug_func = func(*args, **kwargs)
         w,h = kwargs['cfg']['CROP']
         _crop_aug = albu.OneOf([
-                #albu.RandomResizedCrop(w, h, scale=(0.05, 0.4)),
+                #albu.RandomResizedCrop(h, w, scale=(0.05, 0.4)),
                 albu.RandomCrop(h,w)
-                #albu.CropNonEmptyMaskIfExists(w, h)
+                #albu.CropNonEmptyMaskIfExists(h, w)
             ], p=1)
         aug = albu.Compose([_crop_aug, aug_func])
         return aug
