@@ -36,15 +36,27 @@ def norm_aug(func):
 def crop_aug(func):
     def crop(*args, **kwargs):
         aug_func = func(*args, **kwargs)
-        size = kwargs['size']
+        w,h = kwargs['cfg']['CROP']
         _crop_aug = albu.OneOf([
-                #albu.RandomResizedCrop(size, size, scale=(0.05, 0.4)),
-                albu.RandomCrop(size,size)
-                #albu.CropNonEmptyMaskIfExists(size, size)
+                #albu.RandomResizedCrop(w, h, scale=(0.05, 0.4)),
+                albu.RandomCrop(h,w)
+                #albu.CropNonEmptyMaskIfExists(w, h)
             ], p=1)
         aug = albu.Compose([_crop_aug, aug_func])
         return aug
     return crop
+
+
+def resize_aug(func):
+    def resize(*args, **kwargs):
+        aug_func = func(*args, **kwargs)
+        w,h = kwargs['cfg']['RESIZE']
+        _resize_aug = albu.OneOf([
+                albu.Resize(h,w)
+            ], p=1)
+        aug = albu.Compose([_resize_aug, aug_func])
+        return aug
+    return resize
 
 def bbox_aug(func, box_format, min_area, min_visibility):
     def bbox(*args, **kwargs):
@@ -57,26 +69,34 @@ def to_gpu(t, device):
     return t.to(device)
 
 @norm_aug
-def get_val(*, size):
-    return albu.Compose([albu.CenterCrop(size, size)])
+def get_val(*, cfg):
+    w,h = cfg['CROP']
+    return albu.Compose([albu.CenterCrop(h,w)])
 
 @norm_aug
-def get_val_forced(*, size):
-    return albu.Compose([albu.CropNonEmptyMaskIfExists(size, size)])
+def get_val_forced(*, cfg):
+    w,h = cfg['CROP']
+    return albu.Compose([albu.CropNonEmptyMaskIfExists(h,w)])
 
 
 @norm_aug
-def get_test(*, size):
-    return albu.Compose([albu.Resize(size, size)])
+def get_test(*, cfg):
+    w,h = cfg['RESIZE']
+    return albu.Compose([albu.Resize(h,w)])
 
 # def get_gpu_test(*, size):
-#     return albu.Compose([albu.Resize(size, size)])
+#     return albu.Compose([albu.Resize(size[1], size[0])])
 
 @crop_aug
 @norm_aug
 def get_light(*, size):
     return albu.Compose([albu.Flip(), albu.RandomRotate90()])
 
+@resize_aug
+@crop_aug
+@norm_aug
+def get_light_resized(*, cfg):
+    return albu.Compose([albu.Flip(), albu.RandomRotate90()])
 
 @crop_aug
 @norm_aug
@@ -138,15 +158,17 @@ def _get_types():
         "light" : get_light,
         "medium" : get_medium,
         "hard": get_hard,
+        "light_res": get_light_resized,
     }
     return types
 
-def get_aug(aug_type="val", size=256):
-    """aug_type (str): one of `val`, `test`, `light`, `medium`, `hard`
-       size (int): final size of the crop"""
+def get_aug(aug_type, transforms_cfg):
+    """ aug_type (str): one of `val`, `test`, `light`, `medium`, `hard`
+        transforms_cfg (dict): part of main cfg
+    """
     types = _get_types()
-    return types[aug_type](size=size)
+    return types[aug_type](cfg=transforms_cfg)
 
-def get_bbox_aug(aug_type="val", size=256, min_area=0, min_visibility=0):
+def get_bbox_aug(aug_type, transforms_cfg, min_area=0, min_visibility=0):
     types = {k:bbox_aug(v, 'pascal_voc', min_area, min_visibility) for k,v in _get_types().items()}
-    return types[aug_type](size=size)
+    return types[aug_type](cfg=transforms_cfg)

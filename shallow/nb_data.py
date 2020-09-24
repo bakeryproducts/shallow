@@ -33,25 +33,17 @@ class Dataset:
         assert len(self.files) > 0, ('Filtered out all files!', self.root)
         self.files_map = {f.with_suffix('').name:i for i,f in enumerate(self.files)}
 
-    def load_item(self, idx):
-        raise NotImplementedError
-
-    def __getitem__(self, idx):
-        item = self.load_item(idx)
-        return item
-
-    def __len__(self):
-        return len(self.files)
+    def load_item(self, idx): raise NotImplementedError
+    def process_item(self, item): return item
+    def __len__(self): return len(self.files)
+    def __getitem__(self, idx): return self.process_item(self.load_item(idx))
 
 #     def __add__(self, other):
 #         return ConcatDataset([self, other])
 
-
 class ImageDataset(Dataset):
     def load_item(self, idx):
         img_path = self.files[idx]
-        #img = cv2.imread(str(img_path))
-        #img = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
         img = Image.open(str(img_path))
         return img
 
@@ -60,14 +52,12 @@ class PairDataset:
         self.ds1, self.ds2 = ds1, ds2
         self.check_len()
 
-    def check_len(self):
-        assert len(self.ds1) == len(self.ds2)
+    def __len__(self): return len(self.ds1)
+    def check_len(self): assert len(self.ds1) == len(self.ds2)
 
     def __getitem__(self, idx):
         return self.ds1.__getitem__(idx), self.ds2.__getitem__(idx)
 
-    def __len__(self):
-        return len(self.ds1)
 
 class TransformDataset:
     def __init__(self, dataset, transforms, is_masked=False):
