@@ -84,7 +84,7 @@ class TimerCB(Callback):
         self.epoch_timer.stop()
         bs, es = self.learner.dl.batch_size, len(self.learner.dl)
         if self.logger is not None: self.logger.info(f'\tEpoch : {self.epoch_timer.last: .3f} s, {bs * es/self.epoch_timer.last: .3f} im/s')
-        #if self.logger is not None: self.logger.info(f'\t\tBatch : {bs/self.batch_timer.avg: .3f} im/s')
+        if self.logger is not None: self.logger.info(f'\t\tBatch : {self.batch_timer.avg: .3f} s')
         self.batch_timer.reset()
 
     def after_fit(self):
