@@ -211,9 +211,8 @@ def _create_dataset_fact(catalog, ds, dataset_factories):
     return factory(**dataset_attrs['args'])
 
 def create_datasets(cfg,
-                   catalog,
-                   dataset_factories,
-                   dataset_types=['TRAIN', 'VALID', 'TEST']):
+                    all_datasets,
+                    dataset_types=['TRAIN', 'VALID', 'TEST']):
 
     converted_datasets = {}
     for dataset_type in dataset_types:
@@ -221,10 +220,26 @@ def create_datasets(cfg,
         datasets_strings = data_field.DATASETS
 
         if datasets_strings:
-            datasets = [_create_dataset_fact(catalog, ds, dataset_factories) for ds in datasets_strings]
+            datasets = [all_datasets[ds] for ds in datasets_strings]
             ds = ConcatDataset(datasets) if len(datasets)>1 else datasets[0]
             converted_datasets[dataset_type] = ds
     return converted_datasets
+
+# def __create_datasets(cfg,
+#                    catalog,
+#                    dataset_factories,
+#                    dataset_types=['TRAIN', 'VALID', 'TEST']):
+
+#     converted_datasets = {}
+#     for dataset_type in dataset_types:
+#         data_field = cfg.DATA[dataset_type]
+#         datasets_strings = data_field.DATASETS
+
+#         if datasets_strings:
+#             datasets = [_create_dataset_fact(catalog, ds, dataset_factories) for ds in datasets_strings]
+#             ds = ConcatDataset(datasets) if len(datasets)>1 else datasets[0]
+#             converted_datasets[dataset_type] = ds
+#     return converted_datasets
 
 def create_transforms(cfg,
                       transform_factories,
