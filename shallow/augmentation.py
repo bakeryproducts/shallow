@@ -4,15 +4,19 @@
 #################################################
 # file to edit: dev_nb/augmentation.ipynb
 
-import cv2
 import torch
 import albumentations as albu
 import albumentations.pytorch as albu_pt
 
-import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 
+BBOX_PARAMS = {
+    "format":'coco',
+    "label_fields":None,
+    "min_area":0.0,
+    "min_visibility":0.0,
+}
+def composer(using_boxes): return albu.Compose if not using_boxes else partial(albu.Compose, bbox_params=albu.BboxParams(**BBOX_PARAMS))
 
 class ToTensor(albu_pt.ToTensorV2):
     def apply_to_mask(self, mask, **params):
@@ -21,87 +25,44 @@ class ToTensor(albu_pt.ToTensorV2):
     def apply(self, image, **params):
         return torch.from_numpy(image).permute((2,0,1))
 
-def norm_aug(func):
-    def norm(*args, **kwargs):
-        mean=(0,0,0)
-        #mean = (0.36718887, 0.3378791 , 0.31245533)
+class Augmentator:
+    def __init__(self, cfg, using_boxes=False):
+        self.cfg = cfg
+        self.using_boxes = using_boxes
+        self.resize_w, self.resize_h = self.cfg['RESIZE']
+        self.crop_w, self.crop_h = self.cfg['CROP']
+        self.compose = composer(using_boxes)
+
+    def get_aug(self, kind):
+        if kind == 'val': return self.aug_val()
+        elif kind == 'val_forced': return self.aug_val_forced()
+        elif kind == 'test': return self.aug_test ()
+        elif kind == 'light': return self.aug_light()
+        else: raise Exception(f'Unknown aug : {kind}')
+
+    def norm(self):
+        mean = (0,0,0)
         std = (1,1,1)
-        #std =(.5,.5,.5)
-        #std = [4 * 0.09700591, 4 * 0.0953244 , 4 * 0.09326297]
-        aug_func = func(*args, **kwargs)
-        aug = albu.Compose([aug_func, albu.Normalize(mean=mean, std=std), ToTensor()])
-        return aug
-    return norm
+        return self.compose([albu.Normalize(mean=mean, std=std), ToTensor()])
 
-def crop_aug(func):
-    def crop(*args, **kwargs):
-        aug_func = func(*args, **kwargs)
-        w,h = kwargs['cfg']['CROP']
-        _crop_aug = albu.OneOf([
-                #albu.RandomResizedCrop(h, w, scale=(0.05, 0.4)),
-                albu.RandomCrop(h,w)
-                #albu.CropNonEmptyMaskIfExists(h, w)
+    def rand_crop(self):
+        return albu.OneOf([
+                #albu.RandomResizedCrop(h,w, scale=(0.05, 0.4)),
+                albu.RandomCrop(self.crop_h,self.crop_w)
+                #albu.CropNonEmptyMaskIfExists(h,w)
             ], p=1)
-        aug = albu.Compose([_crop_aug, aug_func])
-        return aug
-    return crop
 
+    def resize(self): return albu.Resize(self.resize_h, self.resize_w)
 
-def resize_aug(func):
-    def resize(*args, **kwargs):
-        aug_func = func(*args, **kwargs)
-        w,h = kwargs['cfg']['RESIZE']
-        _resize_aug = albu.OneOf([
-                albu.Resize(h,w)
-            ], p=1)
-        aug = albu.Compose([_resize_aug, aug_func])
-        return aug
-    return resize
+    def aug_val(self): return self.compose([albu.CenterCrop(self.crop_h,self.crop_w), self.norm()])
+    def aug_val_forced(self): return self.compose([albu.CropNonEmptyMaskIfExists(self.crop_h,self.crop_w), self.norm()])
 
-def bbox_aug(func, box_format, min_area, min_visibility):
-    def bbox(*args, **kwargs):
-        aug_func = func(*args, **kwargs)
-        _bbox_aug = albu.BboxParams(format=box_format, min_area=min_area, min_visibility=min_visibility)
-        return albu.Compose([aug_func], _bbox_aug)
-    return bbox
+    def aug_test(self): return self.compose([albu.Resize(self.resize_h,self.resize_w), self.norm()])
+    def aug_light(self): return self.compose([self.rand_crop(), albu.Flip(), albu.RandomRotate90(), self.norm()])
 
-def to_gpu(t, device):
-    return t.to(device)
-
-@norm_aug
-def get_val(*, cfg):
-    w,h = cfg['CROP']
-    return albu.Compose([albu.CenterCrop(h,w)])
-
-@norm_aug
-def get_val_forced(*, cfg):
-    w,h = cfg['CROP']
-    return albu.Compose([albu.CropNonEmptyMaskIfExists(h,w)])
-
-
-@norm_aug
-def get_test(*, cfg):
-    w,h = cfg['RESIZE']
-    return albu.Compose([albu.Resize(h,w)])
-
-# def get_gpu_test(*, size):
-#     return albu.Compose([albu.Resize(size[1], size[0])])
-
-@crop_aug
-@norm_aug
-def get_light(*, size):
-    return albu.Compose([albu.Flip(), albu.RandomRotate90()])
-
-@resize_aug
-@crop_aug
-@norm_aug
-def get_light_resized(*, cfg):
-    return albu.Compose([albu.Flip(), albu.RandomRotate90()])
-
-@crop_aug
-@norm_aug
-def get_medium(*, size):
-    return albu.Compose([
+    def aug_medium(self):
+        return albu.Compose([
+                            self.rand_crop(),
                             albu.Flip(),
                             albu.ShiftScaleRotate(),  # border_mode=cv2.BORDER_CONSTANT
                             # Add occasion blur/sharpening
@@ -120,12 +81,11 @@ def get_medium(*, size):
                             ),
                             # Weather effects
                             albu.RandomFog(fog_coef_lower=0.01, fog_coef_upper=0.3, p=0.1),
+                            self.norm(),
                         ])
-
-@crop_aug
-@norm_aug
-def get_hard(*, size):
-    return albu.Compose([
+    def aug_hard(self):
+        return albu.Compose([
+                            self.rand_crop(),
                             albu.RandomRotate90(),
                             albu.Transpose(),
                             albu.RandomGridShuffle(p=0.2),
@@ -148,27 +108,12 @@ def get_hard(*, size):
                             ),
                             # Weather effects
                             albu.OneOf([albu.RandomFog(fog_coef_lower=0.01, fog_coef_upper=0.3, p=0.1), albu.NoOp()]),
+                            self.norm(),
                         ])
 
-def _get_types():
-    types = {
-        "val" : get_val,
-        "test" : get_test,
-        "gpu_test" : get_test,
-        "light" : get_light,
-        "medium" : get_medium,
-        "hard": get_hard,
-        "light_res": get_light_resized,
-    }
-    return types
-
-def get_aug(aug_type, transforms_cfg):
+def get_aug(aug_type, transforms_cfg, using_boxes):
     """ aug_type (str): one of `val`, `test`, `light`, `medium`, `hard`
         transforms_cfg (dict): part of main cfg
     """
-    types = _get_types()
-    return types[aug_type](cfg=transforms_cfg)
-
-def get_bbox_aug(aug_type, transforms_cfg, min_area=0, min_visibility=0):
-    types = {k:bbox_aug(v, 'pascal_voc', min_area, min_visibility) for k,v in _get_types().items()}
-    return types[aug_type](cfg=transforms_cfg)
+    auger = Augmentator(cfg=transforms_cfg, using_boxes=using_boxes)
+    return auger.get_aug(aug_type)
