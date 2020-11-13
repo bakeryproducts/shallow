@@ -4,10 +4,11 @@
 #################################################
 # file to edit: dev_nb/augmentation.ipynb
 
-import torch
+from functools import partial
 import albumentations as albu
 import albumentations.pytorch as albu_pt
 
+import torch
 import numpy as np
 
 BBOX_PARAMS = {
