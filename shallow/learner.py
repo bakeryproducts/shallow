@@ -18,12 +18,8 @@ class Learner:
 
     def one_batch(self):
         self('before_batch')
-        xb,yb = self.batch
-        self.preds = self.model(xb)
-        self.loss = self.loss_func(self.preds, yb)
         if self.model.training:
             self('train_step')
-
         self('after_batch')
 
     def one_epoch(self, train):

@@ -108,3 +108,12 @@ class ListContainer():
         res = f'{self.__class__.__name__} ({len(self)} items)\n{self.items[:10]}'
         if len(self)>10: res = res[:-1]+ '...]'
         return res
+
+
+def set_cuda_devices(gpu_idx):
+    if os.environ.get('CUDA_VISIBLE_DEVICES') is None:
+        gpus = ','.join([str(g) for g in gpu_idx])
+        os.environ['CUDA_VISIBLE_DEVICES'] = gpus
+    else:
+        print(f'WARNING, GPU OS AND CFG CONFLICT: ', cfg.TRAIN.GPUS, os.environ.get('CUDA_VISIBLE_DEVICES'))
+        print('USING ', os.environ.get('CUDA_VISIBLE_DEVICES'))

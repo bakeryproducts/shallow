@@ -6,3 +6,5 @@ configer.ipynb
 data.ipynb
 augmentation.ipynb
 meters.ipynb
+visualizers.ipynb
+ddp.ipynb

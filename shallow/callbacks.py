@@ -83,8 +83,11 @@ class TimerCB(Callback):
     def after_epoch(self):
         self.epoch_timer.stop()
         bs, es = self.learner.dl.batch_size, len(self.learner.dl)
-        if self.logger is not None: self.logger.info(f'\tEpoch : {self.epoch_timer.last: .3f} s, {bs * es/self.epoch_timer.last: .3f} im/s')
-        if self.logger is not None: self.logger.info(f'\t\tBatch : {self.batch_timer.avg: .3f} s')
+        if self.logger is not None: self.logger.info(f'\tEpoch {self.epoch}: {self.epoch_timer.last: .3f} s,'+
+                                                     f'{bs * es/self.epoch_timer.last: .3f} im/s; '+
+                                                     f'batch {self.batch_timer.avg: .3f} s'
+                                                     )
+        #if self.logger is not None: self.logger.info(f'\t\tBatch : ')
         self.batch_timer.reset()
 
     def after_fit(self):
@@ -161,3 +164,28 @@ class TensorBoardCB(TrackResultsCB):
 #                 if grad is not None:
 #                     self.writer.add_histogram('back'+'.'+keys[i], grad, kwargs['epoch']+self.delta_epochs)
 #                     i += 1
+
+def append_stats(hook, mod, inp, outp, bins=100, vmin=0, vmax=0):
+    if not hasattr(hook,'stats'): hook.stats = ([],[],[])
+    means,stds,hists = hook.stats
+    means.append(outp.data.mean().cpu())
+    stds .append(outp.data.std().cpu())
+    hists.append(outp.data.cpu().histc(bins,vmin,vmax))
+
+class Hook():
+    def __init__(self, m, f): self.hook = m.register_forward_hook(partial(f, self))
+    def remove(self): self.hook.remove()
+    def __del__(self): self.remove()
+
+class Hooks(utils.ListContainer):
+    def __init__(self, ms, f): super().__init__([Hook(m, f) for m in ms])
+    def __enter__(self, *args): return self
+    def __exit__ (self, *args): self.remove()
+    def __del__(self): self.remove()
+
+    def __delitem__(self, i):
+        self[i].remove()
+        super().__delitem__(i)
+
+    def remove(self):
+        for h in self: h.remove()
