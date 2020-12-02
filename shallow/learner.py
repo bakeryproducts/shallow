@@ -26,17 +26,19 @@ class Learner:
         self.model.training = train
         self('before_epoch')
         self.dl = self.dls.TRAIN if train else self.dls.VALID
-        for self.num, self.batch in enumerate(self.progress_bar.child_bar(self.dl, leave=False)):
+        for self.n_batch, self.batch in enumerate(self.progress_bar.child_bar(self.dl, leave=False)):
+            self.np_batch = self.n_batch / len(self.dl)
             self.one_batch()
         self('after_epoch')
 
-    def fit(self, n_epochs):
+    def fit(self, total_epochs):
         self('before_fit')
         self.opt = self.opt_func()
-        self.n_epochs = n_epochs
-        self.progress_bar.master_bar, self.progress_bar.child_bar = self.progress_bar.init(range(self.n_epochs))
+        self.total_epochs = total_epochs
+        self.progress_bar.master_bar, self.progress_bar.child_bar = self.progress_bar.init(range(self.total_epochs))
         try:
-            for self.epoch in self.progress_bar.master_bar:
+            for self.n_epoch in self.progress_bar.master_bar:
+                self.np_epoch = self.n_epoch / self.total_epochs
                 self.one_epoch(True)
                 #self.one_epoch(False)
                 #self.progress_bar.master_bar.write(f'Finished loop {self.epoch}.')

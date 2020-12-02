@@ -26,7 +26,7 @@ class ParamSchedulerCB(Callback):
         setattr(self, phase, self.set_param)
 
     def set_param(self):
-        setattr(self.learner, self.pname, self.sched_func(self.epoch/self.n_epochs))
+        setattr(self.learner, self.pname, self.sched_func(self.np_epoch))
 
 class SetupLearnerCB(Callback):
     def before_batch(self):
@@ -40,8 +40,7 @@ class TrackResultsCB(Callback):
 
     def after_epoch(self):
         n = sum(self.ns)
-        print(self.epoch, self.model.training,
-              sum(self.losses).item()/n, sum(self.accs).item()/n)
+        print(self.n_epoch, self.model.training, sum(self.losses).item()/n, sum(self.accs).item()/n)
 
     def after_batch(self):
         xb, yb = self.batch
@@ -83,7 +82,7 @@ class TimerCB(Callback):
     def after_epoch(self):
         self.epoch_timer.stop()
         bs, es = self.learner.dl.batch_size, len(self.learner.dl)
-        if self.logger is not None: self.logger.info(f'\tEpoch {self.epoch}: {self.epoch_timer.last: .3f} s,'+
+        if self.logger is not None: self.logger.info(f'\tEpoch {self.n_epoch}: {self.epoch_timer.last: .3f} s,'+
                                                      f'{bs * es/self.epoch_timer.last: .3f} im/s; '+
                                                      f'batch {self.batch_timer.avg: .3f} s'
                                                      )
@@ -105,65 +104,20 @@ class CheckpointCB(Callback):
 
     def after_epoch(self):
         save = False
-        if self.epoch == self.n_epochs - 1: save=True
-        elif isinstance(self.save_step, int): save = self.save_step % self.epoch == 0
+        if self.n_epoch == self.total_epochs - 1: save=True
+        elif isinstance(self.save_step, int): save = self.save_step % self.n_epoch == 0
         else:
-            if self.epoch / self.n_epochs > self.pct_counter:
+            if self.np_epoch > self.pct_counter:
                 save = True
                 self.pct_counter += self.save_step
 
         if save:
             torch.save({
-                                'epoch': self.epoch,
+                                'epoch': self.n_epoch,
                                 'loss': self.loss,
                                 'model_state':self.model.state_dict(),
                                 'opt_state':self.opt.state_dict(),
-                            }, str(self.save_path / f'e{self.epoch}_t{self.n_epochs}_1e4l{int(1e4*self.loss)}.pth'))
-
-class TensorBoardCB(TrackResultsCB):
-    def __init__(self, writer, logger=None, save_images=False, step=1, metrics={'totals':['total_loss', 'accuracy']}):
-        utils.store_attr(self, locals())
-
-    def after_epoch(self):
-        n = sum(self.ns)
-        self.accuracy = sum(self.accs).item()/n
-        self.total_loss = sum(self.losses).item()/n
-        for category, metrics in self.metrics.items():
-            for metric in metrics:
-                #if self.logger is not None: self.logger.debug(f"{category + '/' + metric, getattr(self, metric), self.epoch}")
-                self.writer.add_scalar(category + '/' + metric, getattr(self, metric), self.epoch)
-
-        if self.save_images and (self.epoch % self.step) == 0:
-            count = 4
-            images, masks, preds = self.batch[0], self.batch[1], self.preds
-            masks = masks.repeat(1,3,1,1)
-            preds = torch.sigmoid(preds.repeat(1,3,1,1))
-            images = images[:count]
-            masks = masks[:count]
-            preds = preds[:count]
-
-            summary_image = torch.cat([255. * images.detach().cpu(), masks.detach().cpu(), preds.detach().cpu()], 0)
-            #self.logger.debug(f"{summary_image.shape}, {images.shape}, {masks.shape}")
-            grid = torchvision.utils.make_grid(summary_image, nrow=4, pad_value=1)
-            self.writer.add_image('images', grid, self.epoch)
-
-        self.writer.flush()
-
-#             if self.track_weight:
-#                 for k, v in self.learn.model.state_dict().items():
-#                     self.writer.add_histogram(k, v, kwargs['epoch']+self.delta_epochs)
-
-
-#     def on_backward_end(self, **kwargs):
-#         if self.track_grad and 'last_metrics' in kwargs and kwargs['last_metrics'][0] != None and kwargs['epoch'] > self.last_epoch_backward:
-#             self.last_epoch_backward = kwargs['epoch']
-#             keys = list(self.learn.model.state_dict().keys())
-#             indice = 0
-#             for i, param in enumerate(self.learn.model.parameters()):
-#                 grad = param.grad
-#                 if grad is not None:
-#                     self.writer.add_histogram('back'+'.'+keys[i], grad, kwargs['epoch']+self.delta_epochs)
-#                     i += 1
+                            }, str(self.save_path / f'e{self.n_epoch}_t{self.total_epochs}_1e4l{int(1e4*self.loss)}.pth'))
 
 def append_stats(hook, mod, inp, outp, bins=100, vmin=0, vmax=0):
     if not hasattr(hook,'stats'): hook.stats = ([],[],[])
@@ -171,6 +125,23 @@ def append_stats(hook, mod, inp, outp, bins=100, vmin=0, vmax=0):
     means.append(outp.data.mean().cpu())
     stds .append(outp.data.std().cpu())
     hists.append(outp.data.cpu().histc(bins,vmin,vmax))
+
+def get_hookable(model, conv=False, convtrans=False, lrelu=False, relu=False, bn=False, verbose=False):
+    hookable = []
+    for m in model.modules():
+        if isinstance(m, torch.nn.Conv2d):
+            if conv: hookable.append(m)
+        if isinstance(m, torch.nn.ConvTranspose2d):
+            if convtrans: hookable.append(m)
+        elif isinstance(m, torch.nn.LeakyReLU):
+            if lrelu: hookable.append(m)
+        elif isinstance(m, torch.nn.ReLU):
+            if relu: hookable.append(m)
+        elif isinstance(m, torch.nn.BatchNorm2d):
+            if bn: hookable.append(m)
+        else:
+            if verbose: print(m)
+    return hookable
 
 class Hook():
     def __init__(self, m, f): self.hook = m.register_forward_hook(partial(f, self))
