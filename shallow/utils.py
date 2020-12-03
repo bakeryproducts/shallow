@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from collections.abc import Iterable
 from functools import partial, reduce
 
+import torch
 from torchvision.transforms import ToPILImage
 from tqdm.auto import tqdm
 
@@ -117,3 +118,31 @@ def set_cuda_devices(gpu_idx):
     else:
         print(f'WARNING, GPU OS AND CFG CONFLICT: ', cfg.TRAIN.GPUS, os.environ.get('CUDA_VISIBLE_DEVICES'))
         print('USING ', os.environ.get('CUDA_VISIBLE_DEVICES'))
+
+class TorchBuffer:
+    # TODO convert to torch.Tensor extension
+    def __init__(self, shape=(1,), device=torch.device('cpu'), max_len=200):
+        self.shape = shape
+        self.count = 0
+        self.max_len = max_len
+        self.enlarge_factor = 2
+        self.device = device
+        self.buffer = torch.zeros((self.max_len, *self.shape)).to(self.device)
+
+    def enlarge_buffer(self):
+        self.max_len = int(self.max_len * self.enlarge_factor)
+        #print(f'BUFFER GROWS TO {self.max_len}')
+        self.new_buffer = torch.zeros((self.max_len, *self.shape)).to(self.device)
+        self.new_buffer[:self.count] = self.buffer[:self.count]
+        self.buffer = self.new_buffer
+
+    def push(self, t):
+        if self.count > .9 * self.max_len: self.enlarge_buffer()
+        self.buffer[self.count,...] = t
+        self.count += 1
+
+    @property
+    def data(self): return self.buffer[:self.count]
+    def reset(self):
+        self.count=0
+        self.buffer.zero_()

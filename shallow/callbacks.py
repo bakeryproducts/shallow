@@ -78,23 +78,21 @@ class TimerCB(Callback):
     def before_batch(self): self.batch_timer.start()
     def before_epoch(self): self.epoch_timer.start()
     def after_batch(self):  self.batch_timer.stop()
+    def log(self, m): self.logger.info(m) if self.logger is not None else False
 
     def after_epoch(self):
         self.epoch_timer.stop()
         bs, es = self.learner.dl.batch_size, len(self.learner.dl)
-        if self.logger is not None: self.logger.info(f'\tEpoch {self.n_epoch}: {self.epoch_timer.last: .3f} s,'+
-                                                     f'{bs * es/self.epoch_timer.last: .3f} im/s; '+
-                                                     f'batch {self.batch_timer.avg: .3f} s'
-                                                     )
-        #if self.logger is not None: self.logger.info(f'\t\tBatch : ')
+        self.log(f'\tEpoch {self.n_epoch}: {self.epoch_timer.last: .3f} s,'+
+                 f'{bs * es/self.epoch_timer.last: .3f} im/s; '+
+                 f'batch {self.batch_timer.avg: .3f} s'   )
         self.batch_timer.reset()
 
     def after_fit(self):
-        if self.logger is not None:
-            et = self.epoch_timer
-            em = et.avg
-            estd = ((et.p(self.perc) - em) + (em - et.p(1-self.perc))) / 2
-            self.logger.info(f'\tEpoch average time: {em: .3f} +- {estd: .3f} s')
+        et = self.epoch_timer
+        em = et.avg
+        estd = ((et.p(self.perc) - em) + (em - et.p(1-self.perc))) / 2
+        self.log(f'\tEpoch average time: {em: .3f} +- {estd: .3f} s')
 
 
 class CheckpointCB(Callback):
@@ -113,18 +111,53 @@ class CheckpointCB(Callback):
 
         if save:
             torch.save({
-                                'epoch': self.n_epoch,
-                                'loss': self.loss,
-                                'model_state':self.model.state_dict(),
-                                'opt_state':self.opt.state_dict(),
-                            }, str(self.save_path / f'e{self.n_epoch}_t{self.total_epochs}_1e4l{int(1e4*self.loss)}.pth'))
+                            'epoch': self.n_epoch,
+                            'loss': self.loss,
+                            'model_state':self.model.state_dict(),
+                            'opt_state':self.opt.state_dict(),
+                        }, str(self.save_path / f'e{self.n_epoch}_t{self.total_epochs}_1e4l{int(1e4*self.loss)}.pth'))
 
-def append_stats(hook, mod, inp, outp, bins=100, vmin=0, vmax=0):
-    if not hasattr(hook,'stats'): hook.stats = ([],[],[])
-    means,stds,hists = hook.stats
-    means.append(outp.data.mean().cpu())
-    stds .append(outp.data.std().cpu())
-    hists.append(outp.data.cpu().histc(bins,vmin,vmax))
+
+class HooksCB(Callback):
+    def __init__(self, hook_func, hookable_layers, perc_start=.5, logger=None):
+        utils.store_attr(self, locals())
+        self.hooks = Hooks(self.hookable_layers, self.hook_func)
+        self.do_once = True
+
+    def before_batch(self):
+        if self.do_once and self.np_batch > self.perc_start:
+            self.log(f'Gathering activations at batch {self.np_batch}')
+            self.do_once = False
+            self.hooks.attach()
+
+    def after_batch(self): self.hooks.detach()
+    def after_epoch(self): self.do_once = True
+    def log(self, m): self.logger.debug(m) if self.logger is not None else False
+
+class Hook():
+    def __init__(self, m, f): self.m, self.f = m, f
+    def attach(self): self.hook = self.m.register_forward_hook(partial(self.f, self))
+    def detach(self):
+        if hasattr(self, 'hook') :self.hook.remove()
+    def __del__(self): self.detach()
+
+class Hooks(utils.ListContainer):
+    def __init__(self, ms, f): super().__init__([Hook(m, f) for m in ms])
+    def __enter__(self, *args):
+        self.attach()
+        return self
+    def __exit__ (self, *args): self.detach()
+    def __del__(self): self.detach()
+
+    def __delitem__(self, i):
+        self[i].detach()
+        super().__delitem__(i)
+
+    def attach(self):
+        for h in self: h.attach()
+
+    def detach(self):
+        for h in self: h.detach()
 
 def get_hookable(model, conv=False, convtrans=False, lrelu=False, relu=False, bn=False, verbose=False):
     hookable = []
@@ -143,20 +176,19 @@ def get_hookable(model, conv=False, convtrans=False, lrelu=False, relu=False, bn
             if verbose: print(m)
     return hookable
 
-class Hook():
-    def __init__(self, m, f): self.hook = m.register_forward_hook(partial(f, self))
-    def remove(self): self.hook.remove()
-    def __del__(self): self.remove()
+def append_stats(hook, mod, inp, outp, bins=100, vmin=0, vmax=0):
+    if not hasattr(hook,'stats'): hook.stats = ([],[],[])
+    means,stds,hists = hook.stats
+    means.append(outp.data.mean().cpu())
+    stds .append(outp.data.std().cpu())
+    hists.append(outp.data.cpu().histc(bins,vmin,vmax))
 
-class Hooks(utils.ListContainer):
-    def __init__(self, ms, f): super().__init__([Hook(m, f) for m in ms])
-    def __enter__(self, *args): return self
-    def __exit__ (self, *args): self.remove()
-    def __del__(self): self.remove()
-
-    def __delitem__(self, i):
-        self[i].remove()
-        super().__delitem__(i)
-
-    def remove(self):
-        for h in self: h.remove()
+def append_stats_buffered(hook, mod, inp, outp, device=torch.device('cpu'), bins=100, vmin=0, vmax=0):
+    if not hasattr(hook,'stats'): hook.stats = (utils.TorchBuffer(shape=(1,), device=device),
+                                                utils.TorchBuffer(shape=(1,), device=device),
+                                                utils.TorchBuffer(shape=(bins,), device=device)
+                                               )
+    means,stds,hists = hook.stats
+    means.push(outp.data.mean())
+    stds .push(outp.data.std())
+    hists.push(outp.data.float().histc(bins,vmin,vmax))
