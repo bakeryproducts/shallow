@@ -23,8 +23,8 @@ class Learner:
 
     def one_epoch(self, train):
         self.model.training = train
-        self('before_epoch')
         self.dl = self.dls.TRAIN if train else self.dls.VALID
+        self('before_epoch')
         progress = enumerate(self.dl)
         #enumerate(self.progress_bar.child_bar(self.dl, leave=False))
         for self.n_batch, self.batch in progress:

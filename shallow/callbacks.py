@@ -119,18 +119,22 @@ class CheckpointCB(Callback):
 
 
 class HooksCB(Callback):
-    def __init__(self, func, layers, perc_start=.5, logger=None):
+    def __init__(self, func, layers, perc_start=.5, step=1, logger=None):
         utils.store_attr(self, locals())
         self.hooks = Hooks(self.layers, self.func)
         self.do_once = True
 
+    @utils.on_epoch_step
     def before_batch(self):
         if self.do_once and self.np_batch > self.perc_start:
             self.log_debug(f'Gathering activations at batch {self.np_batch}')
             self.do_once = False
             self.hooks.attach()
 
-    def after_batch(self): self.hooks.detach()
+    @utils.on_epoch_step
+    def after_batch(self):
+        if self.hooks.is_attached(): self.hooks.detach()
+    @utils.on_epoch_step
     def after_epoch(self): self.do_once = True
 
 class Hook():
@@ -157,6 +161,8 @@ class Hooks(utils.ListContainer):
 
     def detach(self):
         for h in self: h.detach()
+
+    def is_attached(self): return hasattr(self[0], 'hook')
 
 def get_layers(model, conv=False, convtrans=False, lrelu=False, relu=False, bn=False, verbose=False):
     layers = []
