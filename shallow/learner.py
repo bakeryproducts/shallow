@@ -12,7 +12,7 @@ from shallow import utils
 class CancelFitException(Exception): pass
 
 class Learner:
-    def __init__(self, model, dls, loss_func, lr, cbs, opt_func, progress_bar, **kwargs):
+    def __init__(self, cfg, model, opt, dls, loss_func, lr, cbs, progress_bar, **kwargs):
         utils.store_attr(self, locals())
         for cb in self.cbs: cb.learner = self
 
@@ -25,23 +25,24 @@ class Learner:
         self.model.training = train
         self('before_epoch')
         self.dl = self.dls.TRAIN if train else self.dls.VALID
-        for self.n_batch, self.batch in enumerate(self.progress_bar.child_bar(self.dl, leave=False)):
+        progress = enumerate(self.dl)
+        #enumerate(self.progress_bar.child_bar(self.dl, leave=False))
+        for self.n_batch, self.batch in progress:
             self.np_batch = self.n_batch / len(self.dl)
             self.one_batch()
         self('after_epoch')
 
     def fit(self, total_epochs):
         self('before_fit')
-        self.opt = self.opt_func()
         self.total_epochs = total_epochs
-        self.progress_bar.master_bar, self.progress_bar.child_bar = self.progress_bar.init(range(self.total_epochs))
+        #self.progress_bar.master_bar, self.progress_bar.child_bar = self.progress_bar.init(range(self.total_epochs))
+        progress = range(self.total_epochs)
         try:
-            for self.n_epoch in self.progress_bar.master_bar:
+            for self.n_epoch in progress:
                 self.np_epoch = self.n_epoch / self.total_epochs
                 self.one_epoch(True)
                 #self.one_epoch(False)
                 #self.progress_bar.master_bar.write(f'Finished loop {self.epoch}.')
-
         except CancelFitException: pass
         self('after_fit')
 

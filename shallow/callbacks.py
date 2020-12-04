@@ -11,7 +11,6 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from shallow import utils, meters
-#from utils import GetAttr
 
 class CancelFitException(Exception): pass
 
@@ -84,7 +83,7 @@ class TimerCB(Callback):
     def after_epoch(self):
         self.epoch_timer.stop()
         bs, es = self.learner.dl.batch_size, len(self.learner.dl)
-        self.log_info(f'\tEpoch {self.n_epoch}: {self.epoch_timer.last: .3f} s,'+
+        self.log_info(f'\t[E {self.n_epoch}/{self.total_epochs}]: {self.epoch_timer.last: .3f} s,'+
                  f'{bs * es/self.epoch_timer.last: .3f} im/s; '+
                  f'batch {self.batch_timer.avg: .3f} s'   )
         self.batch_timer.reset()
@@ -120,9 +119,9 @@ class CheckpointCB(Callback):
 
 
 class HooksCB(Callback):
-    def __init__(self, hook_func, hookable_layers, perc_start=.5, logger=None):
+    def __init__(self, func, layers, perc_start=.5, logger=None):
         utils.store_attr(self, locals())
-        self.hooks = Hooks(self.hookable_layers, self.hook_func)
+        self.hooks = Hooks(self.layers, self.func)
         self.do_once = True
 
     def before_batch(self):
@@ -159,22 +158,22 @@ class Hooks(utils.ListContainer):
     def detach(self):
         for h in self: h.detach()
 
-def get_hookable(model, conv=False, convtrans=False, lrelu=False, relu=False, bn=False, verbose=False):
-    hookable = []
+def get_layers(model, conv=False, convtrans=False, lrelu=False, relu=False, bn=False, verbose=False):
+    layers = []
     for m in model.modules():
         if isinstance(m, torch.nn.Conv2d):
-            if conv: hookable.append(m)
+            if conv: layers.append(m)
         if isinstance(m, torch.nn.ConvTranspose2d):
-            if convtrans: hookable.append(m)
+            if convtrans: layers.append(m)
         elif isinstance(m, torch.nn.LeakyReLU):
-            if lrelu: hookable.append(m)
+            if lrelu: layers.append(m)
         elif isinstance(m, torch.nn.ReLU):
-            if relu: hookable.append(m)
+            if relu: layers.append(m)
         elif isinstance(m, torch.nn.BatchNorm2d):
-            if bn: hookable.append(m)
+            if bn: layers.append(m)
         else:
             if verbose: print(m)
-    return hookable
+    return layers
 
 def append_stats(hook, mod, inp, outp, bins=100, vmin=0, vmax=0):
     if not hasattr(hook,'stats'): hook.stats = ([],[],[])

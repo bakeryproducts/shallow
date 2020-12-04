@@ -146,3 +146,22 @@ class TorchBuffer:
     def reset(self):
         self.count=0
         self.buffer.zero_()
+
+
+def on_master(f):
+    def wrapper(*args):
+        if args[0].cfg.PARALLEL.IS_MASTER:
+            return f(*args)
+    return wrapper
+
+def on_epoch_step(f):
+    def wrapper(*args):
+        if (args[0].n_epoch % args[0].step) == 0:
+            return f(*args)
+    return wrapper
+
+#def on_epoch_step(f):
+#    def wrapper(*args):
+#        if (args[0].n_epoch % args[0].step) == 0:
+#            return f(*args)
+#    return wrapper
