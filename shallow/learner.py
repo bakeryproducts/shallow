@@ -18,8 +18,7 @@ class Learner:
 
     def one_batch(self):
         self('before_batch')
-        if self.model.training:
-            self('train_step')
+        if self.model.training: self('train_step')
         self('after_batch')
 
     def one_epoch(self, train):

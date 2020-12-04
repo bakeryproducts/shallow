@@ -17,8 +17,10 @@ class CancelFitException(Exception): pass
 
 class Callback(utils.GetAttr):
     _default='learner'
-    def __init__(self, *args, **kwargs):
-        utils.store_attr(self, locals())
+    logger=None
+    def log_debug(self, m): self.logger.log("DEBUG", m) if self.logger is not None else False
+    def log_info(self, m): self.logger.log("INFO", m) if self.logger is not None else False
+    def log_critical(self, m): self.logger.log("CRITICAL", m) if self.logger is not None else False
 
 class ParamSchedulerCB(Callback):
     def __init__(self, phase, pname, sched_func):
@@ -78,12 +80,11 @@ class TimerCB(Callback):
     def before_batch(self): self.batch_timer.start()
     def before_epoch(self): self.epoch_timer.start()
     def after_batch(self):  self.batch_timer.stop()
-    def log(self, m): self.logger.info(m) if self.logger is not None else False
 
     def after_epoch(self):
         self.epoch_timer.stop()
         bs, es = self.learner.dl.batch_size, len(self.learner.dl)
-        self.log(f'\tEpoch {self.n_epoch}: {self.epoch_timer.last: .3f} s,'+
+        self.log_info(f'\tEpoch {self.n_epoch}: {self.epoch_timer.last: .3f} s,'+
                  f'{bs * es/self.epoch_timer.last: .3f} im/s; '+
                  f'batch {self.batch_timer.avg: .3f} s'   )
         self.batch_timer.reset()
@@ -92,7 +93,7 @@ class TimerCB(Callback):
         et = self.epoch_timer
         em = et.avg
         estd = ((et.p(self.perc) - em) + (em - et.p(1-self.perc))) / 2
-        self.log(f'\tEpoch average time: {em: .3f} +- {estd: .3f} s')
+        self.log_info(f'\tEpoch average time: {em: .3f} +- {estd: .3f} s')
 
 
 class CheckpointCB(Callback):
@@ -126,13 +127,12 @@ class HooksCB(Callback):
 
     def before_batch(self):
         if self.do_once and self.np_batch > self.perc_start:
-            self.log(f'Gathering activations at batch {self.np_batch}')
+            self.log_debug(f'Gathering activations at batch {self.np_batch}')
             self.do_once = False
             self.hooks.attach()
 
     def after_batch(self): self.hooks.detach()
     def after_epoch(self): self.do_once = True
-    def log(self, m): self.logger.debug(m) if self.logger is not None else False
 
 class Hook():
     def __init__(self, m, f): self.m, self.f = m, f
