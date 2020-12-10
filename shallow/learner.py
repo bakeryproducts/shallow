@@ -18,14 +18,10 @@
 # %autoreload 2
 # %matplotlib inline
 
-# %% tags=["active-ipynb"]
-# import sys
-# sys.path.append('src')
-
 # %% [markdown]
 # # Imports
 
-# %% tags=["active-py"]
+# %%
 import torch
 import torch.nn as nn
 
@@ -35,7 +31,7 @@ from shallow import utils
 # %% [markdown]
 # # Code
 
-# %% tags=["active-py"]
+# %%
 class CancelFitException(Exception): pass
 
 class Learner:
@@ -46,6 +42,7 @@ class Learner:
     def one_batch(self):
         self('before_batch')
         if self.model.training: self('train_step')
+        else: self('val_step')
         self('after_batch')
 
     def one_epoch(self, train):
@@ -64,7 +61,7 @@ class Learner:
             for self.n_epoch in self.epoch_bar:
                 self.np_epoch = self.n_epoch / self.total_epochs
                 self.one_epoch(True)
-                #self.one_epoch(False)
+                self.one_epoch(False)
                 #self.progress_bar.master_bar.write(f'Finished loop {self.epoch}.')
         except CancelFitException: pass
         self('after_fit')
