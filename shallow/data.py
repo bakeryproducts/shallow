@@ -52,21 +52,21 @@ from shallow import utils
 
 # %%
 class Dataset:
-    def __init__(self, root, pattern, filter_fn=utils.noop):
-        self.pattern = pattern
+    def __init__(self, root, pattern):
         self.root = Path(root)
-        files = list(self.root.glob(self.pattern))
-        assert len(files) > 0, ('There is no matching files!', self.root)
-        files = sorted(files)
-        self.files = filter_fn(files)
-        assert len(self.files) > 0, ('Filtered out all files!', self.root)
-        self.files_map = {f.with_suffix('').name:i for i,f in enumerate(self.files)}
+        self.pattern = pattern
+        self.files = sorted(list(self.root.glob(self.pattern)))
+        self._is_empty('There is no matching files!')
         
-    def load_item(self, idx): raise NotImplementedError
-    def process_item(self, item): return item
+    def apply_filter(self, filter_fn):
+        self.files = filter_fn(self.files)
+        self._is_empty()
+
+    def _is_empty(self, msg='There is no item in dataset!'): assert len(self.files) > 0
     def __len__(self): return len(self.files)
     def __getitem__(self, idx): return self.process_item(self.load_item(idx))
-    
+    def load_item(self, idx): raise NotImplementedError
+    def process_item(self, item): return item
 #     def __add__(self, other):
 #         return ConcatDataset([self, other])
     

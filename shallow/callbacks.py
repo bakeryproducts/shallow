@@ -92,31 +92,36 @@ class LRFinderCB(Callback):
         
         
 class TimerCB(Callback):
-    def __init__(self, Timer=None, logger=None):
+    def __init__(self, Timer=None, mode_train=False, logger=None):
         self.logger = logger
+        self.mode_train = mode_train
         self.perc=90
         if Timer is None: Timer = meters.StopwatchMeter
         self.batch_timer = Timer()
         self.epoch_timer = Timer()
     
-    def before_batch(self): self.batch_timer.start()
-    def before_epoch(self): self.epoch_timer.start()
-    def after_batch(self):  self.batch_timer.stop()
+    def _before_batch(self): 
+        if self.model.training == self.mode_train: self.batch_timer.start()
+    def before_epoch(self):
+        if self.model.training == self.mode_train: self.epoch_timer.start()
+    def _after_batch(self):
+        if self.model.training == self.mode_train: self.batch_timer.stop()
 
     def after_epoch(self):
-        if self.model.training:
+        if self.model.training == self.mode_train:
             self.epoch_timer.stop()
             bs, es = self.learner.dl.batch_size, len(self.learner.dl)
             self.log_info(f'\t[E {self.n_epoch}/{self.total_epochs}]: {self.epoch_timer.last: .3f} s,'+
-                     f'{bs * es/self.epoch_timer.last: .3f} im/s; '+
-                     f'batch {self.batch_timer.avg: .3f} s'   )    
+                     f'{bs * es/self.epoch_timer.last: .3f} im/s; ')
+                     #f'batch {self.batch_timer.avg: .3f} s'   )    
             self.batch_timer.reset()
     
     def after_fit(self):
-        et = self.epoch_timer
-        em = et.avg
-        estd = ((et.p(self.perc) - em) + (em - et.p(1-self.perc))) / 2
-        self.log_info(f'\tEpoch average time: {em: .3f} +- {estd: .3f} s')
+        if self.model.training == self.mode_train:
+            et = self.epoch_timer
+            em = et.avg
+            estd = ((et.p(self.perc) - em) + (em - et.p(1-self.perc))) / 2
+            self.log_info(f'\tEpoch average time: {em: .3f} +- {estd: .3f} s')
         
         
 class CheckpointCB(Callback):
@@ -223,7 +228,7 @@ def append_stats_buffered(hook, mod, inp, outp, device=torch.device('cpu'), bins
     means.push(outp.data.mean())
     stds .push(outp.data.std())
     hists.push(outp.data.float().histc(bins,vmin,vmax))
-    
+
 
 # %% [markdown]
 # # Tests
