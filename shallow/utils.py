@@ -200,6 +200,11 @@ def on_train(f):
             return f(*args)
     return wrapper
 
+def on_validation(f):
+    def wrapper(*args):
+        if not args[0].model.training:
+            return f(*args)
+    return wrapper
 # %% [markdown]
 # # Tests
 
