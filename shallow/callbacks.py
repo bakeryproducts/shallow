@@ -154,6 +154,7 @@ class HooksCB(Callback):
         self.do_once = True
     
     @utils.on_epoch_step
+    @utils.on_train
     def before_batch(self):
         if self.do_once and self.np_batch > self.perc_start:
             self.log_debug(f'Gathering activations at batch {self.np_batch}')
@@ -161,9 +162,11 @@ class HooksCB(Callback):
             self.hooks.attach()
     
     @utils.on_epoch_step
+    @utils.on_train
     def after_batch(self):
         if self.hooks.is_attached(): self.hooks.detach()
     @utils.on_epoch_step
+    @utils.on_train
     def after_epoch(self): self.do_once = True
 
 
