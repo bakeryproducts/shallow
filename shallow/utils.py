@@ -184,7 +184,7 @@ class TorchBuffer:
 # %%
 def on_master(f):
     def wrapper(*args):
-        if args[0].cfg.PARALLEL.IS_MASTER:
+        if args[0].kwargs['cfg'].PARALLEL.IS_MASTER:
             return f(*args)
     return wrapper
 
