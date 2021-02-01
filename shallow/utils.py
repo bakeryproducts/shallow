@@ -1,12 +1,12 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: ipynb,shallow//py:percent
+#     formats: notebooks//ipynb,shallow//py:percent
 #     text_representation:
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.7.1
+#       jupytext_version: 1.9.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -29,7 +29,6 @@ from collections.abc import Iterable
 from functools import partial, reduce
 
 import torch
-import numpy as np
 from torchvision.transforms import ToPILImage
 from tqdm.auto import tqdm
 
@@ -180,17 +179,12 @@ class TorchBuffer:
         self.count=0
         self.buffer.zero_()
         
-# %%
-def fig_to_array(fig):
-     fig.canvas.draw()
-     data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-     data = data.reshape(fig.canvas.get_width_height()[::-1]+ (3,))
-     return data
+
 
 # %%
 def on_master(f):
     def wrapper(*args):
-        if args[0].kwargs['cfg'].PARALLEL.IS_MASTER:
+        if args[0].cfg.PARALLEL.IS_MASTER:
             return f(*args)
     return wrapper
 
@@ -201,16 +195,11 @@ def on_epoch_step(f):
     return wrapper
 
 def on_train(f):
-    def wrapper(*args):
-        if args[0].model.training:
-            return f(*args)
-    return wrapper
++   1     def wrapper(*args):
++   2         if args[0].model.training:
++   3             return f(*args)
++   4     return wrapper
 
-def on_validation(f):
-    def wrapper(*args):
-        if not args[0].model.training:
-            return f(*args)
-    return wrapper
 # %% [markdown]
 # # Tests
 

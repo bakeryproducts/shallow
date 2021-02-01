@@ -1,12 +1,12 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: ipynb,shallow//py:percent
+#     formats: notebooks//ipynb,shallow//py:percent
 #     text_representation:
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.7.1
+#       jupytext_version: 1.9.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -307,8 +307,6 @@ def build_dataloaders(datasets, samplers=None, batch_sizes=None, num_workers=1, 
     dls = {}
     for kind, dataset in datasets.items():
         sampler = samplers[kind]    
-        num_workers = num_workers if kind=='TRAIN' else 12
-        pin = pin if kind=='TRAIN' else False
         shuffle = kind == 'TRAIN' if sampler is None else False
         batch_size = batch_sizes[kind] if batch_sizes[kind] is not None else 1
         dls[kind] = create_dataloader(dataset, sampler, shuffle, batch_size, num_workers, drop_last, pin)

@@ -1,12 +1,12 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: ipynb,shallow//py:percent
+#     formats: notebooks//ipynb,shallow//py:percent
 #     text_representation:
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.7.1
+#       jupytext_version: 1.9.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -154,7 +154,6 @@ class HooksCB(Callback):
         self.do_once = True
     
     @utils.on_epoch_step
-    @utils.on_train
     def before_batch(self):
         if self.do_once and self.np_batch > self.perc_start:
             self.log_debug(f'Gathering activations at batch {self.np_batch}')
@@ -162,11 +161,9 @@ class HooksCB(Callback):
             self.hooks.attach()
     
     @utils.on_epoch_step
-    @utils.on_train
     def after_batch(self):
         if self.hooks.is_attached(): self.hooks.detach()
     @utils.on_epoch_step
-    @utils.on_train
     def after_epoch(self): self.do_once = True
 
 
