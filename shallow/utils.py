@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.9.1
+#       jupytext_version: 1.7.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -181,10 +181,10 @@ class TorchBuffer:
         self.buffer.zero_()
         
 def fig_to_array(fig):
-     fig.canvas.draw()
-     data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-     data = data.reshape(fig.canvas.get_width_height()[::-1]+ (3,))
-     return data
+    fig.canvas.draw()
+    data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    data = data.reshape(fig.canvas.get_width_height()[::-1]+ (3,))
+    return data
 
 # %%
 def on_master(f):
@@ -213,8 +213,6 @@ def on_validation(f):
 
 # %% [markdown]
 # # Tests
-
-# %%
 
 # %% [markdown]
 # ### Torch buffer
