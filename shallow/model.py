@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.9.1
+#       jupytext_version: 1.7.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -39,7 +39,7 @@ class conv_once(nn.Module):
                         (name+'conv', nn.Conv2d(fi, fo, kernel_size=3,stride=1,padding=1,bias=False)),
                         (name+'norm', nn.BatchNorm2d(fo)),
                         (name+'relu', nn.LeakyReLU(slope, inplace=True)),
-                ])
+                ]))
     def forward(self, x): return self.block(x)
 
             
@@ -50,9 +50,9 @@ class conv_block(nn.Module):
         name += '_'
         self.block = nn.Sequential(
                 OrderedDict([
-                        conv_once(fi,fo,name+'conv_block_1', slope),
-                        conv_once(fo,fo,name+'conv_block_2', slope),
-                ])
+                        (name+'conv_block_1', conv_once(fi,fo,name+'1', slope)),
+                        (name+'conv_block_2', conv_once(fo,fo,name+'2', slope)),
+                ]))
             
     def forward(self, x): return self.block(x)
 
@@ -64,8 +64,8 @@ class upsample_block(nn.Module):
         self.block = nn.Sequential(
                 OrderedDict([
                         (name+'upsample', nn.Upsample(scale_factor=2)),
-                        conv_once(fi,fo,name+'conv_block_1', slope)
-                ])
+                        (name+'conv_block_1', conv_once(fi,fo,name+'1', slope))
+                ]))
             
     def forward(self,x): return self.block(x)
             
@@ -79,7 +79,7 @@ class downsample_block(nn.Module):
                         (name+'conv', nn.Conv2d(fi, fo, kernel_size=3,stride=2,padding=1,bias=False)),
                         (name+'norm', nn.BatchNorm2d(fo)),
                         (name+'relu', nn.LeakyReLU(slope, inplace=True)),
-                ])
+                ]))
     def forward(self, x): return self.block(x)
 
 
@@ -92,20 +92,20 @@ class seg_attention_block(nn.Module):
         self.wg = nn.Sequential(OrderedDict([
                                 (name1+'conv',nn.Conv2d(fg, fint, kernel_size=1,stride=1,padding=0,bias=False)),
                                 (name1+'norm',nn.BatchNorm2d(fint))
-        ])
+        ]))
                                 
         name2 = name +'_signal_'             
         self.wx = nn.Sequential(OrderedDict([
                                 (name2+'conv',nn.Conv2d(fl, fint, kernel_size=1,stride=1,padding=0,bias=False)),
                                 (name2+'norm',nn.BatchNorm2d(fint))
-        ])
+        ]))
             
         name3 = name +'_merge_'
         self.psi = nn.Sequential(OrderedDict([
                                 (name3+'conv',nn.Conv2d(fint, 1, kernel_size=1,stride=1,padding=0,bias=False)),
                                 (name3+'norm',nn.BatchNorm2d(1)),
                                 (name3+'sigmoid', nn.Sigmoid())
-        ])
+        ]))
         self.relu = nn.ReLU(inplace=True)
         
     def forward(self, g, x):
@@ -118,11 +118,14 @@ class seg_attention_block(nn.Module):
 
 # %%
 class _base_unet(nn.Module):
-    def __init__(self,in_channels=3, out_channels=1, init_features=32):
-        super(U_Net,self).__init__()
-        f = init_features
+    def __init__(self, in_channels=3, out_channels=1, init_features=32):
+        super(_base_unet, self).__init__()
+        self.init_features = init_features
+        self.out_channels = out_channels
+        self.in_channels = in_channels
         
-        self.e1 = conv_block(img_ch, f, 'e1')
+        f = init_features
+        self.e1 = conv_block(in_channels, f, 'e1')
         self.downsample1 = downsample_block(f,f,'d1')
         self.e2 = conv_block(f, 2*f, 'e2')
         self.downsample2 = downsample_block(2*f,2*f,'d2')
@@ -177,7 +180,7 @@ class _base_unet(nn.Module):
 class Unet(_base_unet):
     def __init__(self, *args, **kwargs):
         super(Unet, self).__init__( *args, **kwargs)
-        self.conv_1x1 = nn.Conv2d(f, out_channels, kernel_size=1,stride=1,padding=0)
+        self.conv_1x1 = nn.Conv2d(self.init_features, self.out_channels, kernel_size=1,stride=1,padding=0)
     
     def forward(self, x):
         x = super(Unet, self).forward(x)
@@ -186,9 +189,10 @@ class Unet(_base_unet):
 class Unet_x05(_base_unet):
     def __init__(self, *args, **kwargs):
         super(Unet_x05, self).__init__( *args, **kwargs)
+        f = self.init_features
         self.downsample21 = downsample_block(f,f,'d21')
         self.e21 = conv_block(f, f, 'e21')
-        self.conv_1x1 = nn.Conv2d(f, out_channels, kernel_size=1,stride=1,padding=0)
+        self.conv_1x1 = nn.Conv2d(f, self.out_channels, kernel_size=1,stride=1,padding=0)
     
     def forward(self, x):
         x = super(Unet_x05, self).forward(x)
@@ -198,21 +202,18 @@ class Unet_x05(_base_unet):
 class Unet_x025(_base_unet):
     def __init__(self, *args, **kwargs):
         super(Unet_x025, self).__init__( *args, **kwargs)
+        f = self.init_features
         self.downsample21 = downsample_block(f,f,'d21')
         self.e21 = conv_block(f, 2*f, 'e21')
         self.downsample22 = downsample_block(2*f,2*f,'d22')
         self.e22 = conv_block(2*f, 2*f, 'e22')
-        self.conv_1x1 = nn.Conv2d(f, out_channels, kernel_size=1,stride=1,padding=0)
+        self.conv_1x1 = nn.Conv2d(f, self.out_channels, kernel_size=1,stride=1,padding=0)
     
     def forward(self, x):
         x = super(Unet_x025, self).forward(x)
         e21 = self.e21(self.downsample21(x))
         e22 = self.e22(self.downsample22(e21))
         return self.conv_1x1(e22)
-
-# %%
-
-# %%
 
 # %%
 
