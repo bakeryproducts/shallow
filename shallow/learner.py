@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.9.1
+#       jupytext_version: 1.7.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -61,7 +61,7 @@ class Learner:
             for self.n_epoch in self.epoch_bar:
                 self.np_epoch = self.n_epoch / self.total_epochs
                 self.one_epoch(True)
-                self.one_epoch(False)
+                #self.one_epoch(False)
                 #self.progress_bar.master_bar.write(f'Finished loop {self.epoch}.')
         except CancelFitException: pass
         self('after_fit')
