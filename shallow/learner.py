@@ -35,7 +35,7 @@ from shallow import utils
 class CancelFitException(Exception): pass
 
 class Learner:
-    def __init__(self, model, opt, dls, loss_func, lr, cbs, batch_bar, epoch_bar, val_step=1, **kwargs):
+    def __init__(self, model, opt, dls, loss_func, lr, cbs, batch_bar, epoch_bar, val_rate=1, **kwargs):
         utils.store_attr(self, locals())
         for cb in self.cbs: cb.learner = self
 
@@ -61,7 +61,7 @@ class Learner:
             for self.n_epoch in self.epoch_bar:
                 self.np_epoch = self.n_epoch / self.total_epochs
                 self.one_epoch(True)
-                if self.n_epoch % self.val_step == 0: self.one_epoch(False)
+                if self.n_epoch % self.val_rate == 0: self.one_epoch(False)
                 #self.progress_bar.master_bar.write(f'Finished loop {self.epoch}.')
         except CancelFitException: pass
         self('after_fit')
