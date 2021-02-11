@@ -59,6 +59,10 @@ class Augmentator:
         self.resize_w, self.resize_h = self.cfg['RESIZE']
         self.crop_w, self.crop_h = self.cfg['CROP']
         self.compose = composer(using_boxes)
+
+        self.mean = self.cfg.MEAN if self.cfg.MEAN is not (0,) else (0.46454108, 0.43718538, 0.39618185)
+        self.std = self.cfg.STD if self.cfg.STD is not (0,) else (0.23577851, 0.23005974, 0.23109385)
+        
     
     def get_aug(self, kind):
         if kind == 'val': return self.aug_val()
@@ -68,9 +72,7 @@ class Augmentator:
         else: raise Exception(f'Unknown aug : {kind}')
         
     def norm(self): 
-        mean = (0,0,0)
-        std = (1,1,1)
-        return self.compose([albu.Normalize(mean=mean, std=std), ToTensor()])
+        return self.compose([albu.Normalize(mean=self.mean, std=self.std), ToTensor()])
     
     def rand_crop(self):
         return albu.OneOf([

@@ -185,35 +185,6 @@ class GpuPreloadingDataset:
 # ## Dataset catalog
 
 # %%
-class DatasetCatalog():
-    DATA_DIR = "/tmp/"
-    DATA_DIR_MNT = "/mnt/tmp"
-    
-    DATASETS = {
-        "default": {
-            'factory':'default',
-            "root": "def_root",
-        }
-    }
-    @staticmethod 
-    def create_factory_dict(data_dir, dataset_attrs):
-        #{factory:Dataset, args:args}
-        raise NotImplementedError
-    
-    @classmethod 
-    def get(cls, name):
-        try:
-            attrs = cls.DATASETS[name]
-        except:
-            print(cls.DATASETS)
-            raise RuntimeError("Dataset not available: {}".format(name))
-            
-        if os.path.exists(cls.DATA_DIR):
-            data_dir = cls.DATA_DIR
-        elif os.path.exists(cls.DATA_DIR_MNT):
-            data_dir = cls.DATA_DIR_MNT
-            
-        return cls.create_factory_dict(data_dir, attrs)
         
 
 
@@ -242,12 +213,6 @@ def create_extensions(cfg, datasets, extend_factories):
         extended_datasets[kind] = extend_dataset(ds, cfg.DATA[kind], extend_factories)
     return extended_datasets
 
-
-def _create_dataset_fact(catalog, ds, dataset_factories):
-    dataset_attrs = catalog.get(ds)
-    factory = dataset_factories[dataset_attrs['factory']]
-    return factory(**dataset_attrs['args'])
-
 def create_datasets(cfg,
                     all_datasets,
                     dataset_types=['TRAIN', 'VALID', 'TEST']):
@@ -263,21 +228,6 @@ def create_datasets(cfg,
             converted_datasets[dataset_type] = ds
     return converted_datasets
 
-# def __create_datasets(cfg,
-#                    catalog,
-#                    dataset_factories,
-#                    dataset_types=['TRAIN', 'VALID', 'TEST']):
-
-#     converted_datasets = {}
-#     for dataset_type in dataset_types:
-#         data_field = cfg.DATA[dataset_type]
-#         datasets_strings = data_field.DATASETS
-
-#         if datasets_strings:
-#             datasets = [_create_dataset_fact(catalog, ds, dataset_factories) for ds in datasets_strings]
-#             ds = ConcatDataset(datasets) if len(datasets)>1 else datasets[0] 
-#             converted_datasets[dataset_type] = ds
-#     return converted_datasets
 
 def create_transforms(cfg,
                       transform_factories,
@@ -303,7 +253,8 @@ def apply_transforms_datasets(datasets, transforms):
 
 
 # %%
-def build_dataloaders(datasets, samplers=None, batch_sizes=None, num_workers=1, drop_last=False, pin=False):
+def build_dataloaders(cfg, datasets, samplers=None, batch_sizes=None, num_workers=1, drop_last=False, pin=False):
+    # TODO DDP logic
     dls = {}
     for kind, dataset in datasets.items():
         sampler = samplers[kind]    

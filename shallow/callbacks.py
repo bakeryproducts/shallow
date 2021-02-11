@@ -60,19 +60,22 @@ class SetupLearnerCB(Callback):
     def before_fit(self): self.model.cuda()
 
 class TrackResultsCB(Callback):
-    def before_epoch(self): self.accs,self.losses,self.ns = [],[],[]
+    def before_epoch(self): self.accs,self.losses,self.samples_count = [],[],[]
         
     def after_epoch(self):
         n = sum(self.ns)
-        print(self.n_epoch, self.model.training, sum(self.losses).item()/n, sum(self.accs).item()/n)
+        print(self.n_epoch, self.model.training, sum(self.losses)/n, sum(self.accs)/n)
         
+    @torch.no_grad
     def after_batch(self):
         xb, yb = self.batch
-        acc = (self.preds.argmax(dim=1)==yb).float().sum()
+        n = xb.shape[0]
+        acc = (self.preds.argmax(dim=1)==yb).float().sum().item()
         self.accs.append(acc)
-        n = len(xb)
-        self.losses.append(self.loss*n)
-        self.ns.append(n)
+        self.samples_count.append(n)
+
+        if self.model.training:
+            self.losses.append(self.loss.detach().item()*n)
 
 class LRFinderCB(Callback):
     def before_fit(self):
