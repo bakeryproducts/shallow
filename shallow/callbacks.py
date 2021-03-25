@@ -66,7 +66,6 @@ class TrackResultsCB(Callback):
         n = sum(self.ns)
         print(self.n_epoch, self.model.training, sum(self.losses)/n, sum(self.accs)/n)
         
-    @torch.no_grad
     def after_batch(self):
         xb, yb = self.batch
         n = xb.shape[0]
