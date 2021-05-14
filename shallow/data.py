@@ -88,6 +88,12 @@ class PairDataset:
     def __getitem__(self, idx):
         return self.ds1.__getitem__(idx), self.ds2.__getitem__(idx) 
     
+class FoldDataset:
+    def __init__(self, dataset, idxs):
+        self.dataset = dataset
+        self.idxs = idxs
+    def __len__(self): return len(self.idxs)
+    def __getitem__(self, idx): return self.dataset[self.idxs[idx]]
     
 class TransformDataset:
     def __init__(self, dataset, transforms, is_masked=False):
@@ -252,34 +258,36 @@ def apply_transforms_datasets(datasets, transforms):
     return {dataset_type:transforms[dataset_type](dataset) for dataset_type, dataset in datasets.items()}
 
 
-
-# %%
-def build_dataloaders(cfg, datasets, samplers=None, batch_sizes=None, num_workers=1, drop_last=False, pin=False):
-    # TODO DDP logic
+def build_dataloaders(cfg, datasets, selective=False):
     dls = {}
     for kind, dataset in datasets.items():
-        sampler = samplers[kind]    
-        shuffle = kind == 'TRAIN' if sampler is None else False
-        batch_size = batch_sizes[kind] if batch_sizes[kind] is not None else 1
-        dls[kind] = create_dataloader(dataset, sampler, shuffle, batch_size, num_workers, drop_last, pin)
-            
+        dls[kind] = build_dataloader(cfg, dataset, kind, selective=selective)
     return dls
-    
-def create_dataloader(dataset, sampler=None, shuffle=False, batch_size=1, num_workers=1, drop_last=False, pin=False):
-    collate_fn=None
-    assert not(sampler is not None and shuffle)
-    
-    data_loader = DataLoader(
+
+def build_dataloader(cfg, dataset, mode, selective):
+    drop_last = True
+    sampler = None 
+
+    if cfg.PARALLEL.DDP and (mode == 'TRAIN' or mode == 'SSL'):
+        if sampler is None:
+            sampler = DistributedSampler(dataset, num_replicas=cfg.PARALLEL.WORLD_SIZE, rank=cfg.PARALLEL.LOCAL_RANK, shuffle=True)
+
+    num_workers = cfg.TRAIN.NUM_WORKERS 
+    shuffle = sampler is None
+
+    dl = DataLoader(
         dataset,
-        batch_size=batch_size,
+        batch_size=cfg[mode]['BATCH_SIZE'],
         shuffle=shuffle,
         num_workers=num_workers,
-        pin_memory=pin,
+        pin_memory=True,
         drop_last=drop_last,
-        collate_fn=collate_fn,
-        sampler=sampler,
-    )
-    return data_loader
+        collate_fn=None,
+        sampler=sampler,)
+    return dl
+
+# %%
+
 
 # %% [markdown]
 # # Tests
