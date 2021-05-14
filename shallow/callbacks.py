@@ -37,8 +37,8 @@ from shallow import utils, meters
 # %%
 class CancelFitException(Exception): pass
 
-class Callback(utils.GetAttr): 
-    _default='learner'
+class Callback: 
+    _default='L'
     logger=None
     def log_debug(self, m): self.logger.log("DEBUG", m) if self.logger is not None else False
     def log_info(self, m): self.logger.log("INFO", m) if self.logger is not None else False
@@ -48,15 +48,11 @@ class ParamSchedulerCB(Callback):
     def __init__(self, phase, pname, sched_func):
         self.pname, self.sched_func = pname, sched_func
         setattr(self, phase, self.set_param)
-        
-    def set_param(self):
-        setattr(self.learner, self.pname, self.sched_func(self.np_epoch))
+    def set_param(self): setattr(self.L, self.pname, self.sched_func(self.np_epoch))
     
 class SetupLearnerCB(Callback):
-    def before_batch(self):
-        xb,yb = to_device(self.batch)
-        self.learner.batch = tfm_x(xb),yb
-
+    def __init__(self, batch_transform=utils.to_cuda): self.batch_transform = batch_transform
+    def before_batch(self): self.L.batch = self.batch_transform(self.L.batch)
     def before_fit(self): self.model.cuda()
 
 class TrackResultsCB(Callback):
@@ -66,7 +62,6 @@ class TrackResultsCB(Callback):
         n = sum(self.ns)
         print(self.n_epoch, self.model.training, sum(self.losses)/n, sum(self.accs)/n)
         
-    @torch.no_grad
     def after_batch(self):
         xb, yb = self.batch
         n = xb.shape[0]
@@ -104,51 +99,99 @@ class TimerCB(Callback):
         self.epoch_timer = Timer()
     
     def _before_batch(self): 
-        if self.model.training == self.mode_train: self.batch_timer.start()
+        if self.L.model.training == self.mode_train: self.batch_timer.start()
     def before_epoch(self):
-        if self.model.training == self.mode_train: self.epoch_timer.start()
+        if self.L.model.training == self.mode_train: self.epoch_timer.start()
     def _after_batch(self):
-        if self.model.training == self.mode_train: self.batch_timer.stop()
+        if self.L.model.training == self.mode_train: self.batch_timer.stop()
 
     def after_epoch(self):
-        if self.model.training == self.mode_train:
+        if self.L.model.training == self.mode_train:
             self.epoch_timer.stop()
-            bs, es = self.learner.dl.batch_size, len(self.learner.dl)
-            self.log_info(f'\t[E {self.n_epoch}/{self.total_epochs}]: {self.epoch_timer.last: .3f} s,'+
+            bs, es = self.L.dl.batch_size, len(self.L.dl)
+            self.log_info(f'\t[E {self.L.n_epoch}/{self.L.total_epochs}]: {self.epoch_timer.last: .3f} s,'+
                      f'{bs * es/self.epoch_timer.last: .3f} im/s; ')
                      #f'batch {self.batch_timer.avg: .3f} s'   )    
             self.batch_timer.reset()
     
     def after_fit(self):
-        if self.model.training == self.mode_train:
+        if self.L.model.training == self.mode_train:
             et = self.epoch_timer
             em = et.avg
             estd = ((et.p(self.perc) - em) + (em - et.p(1-self.perc))) / 2
             self.log_info(f'\tEpoch average time: {em: .3f} +- {estd: .3f} s')
         
+class TBPredictionsCB(Callback):
+    def __init__(self, writer, batch_read=lambda x: x, denorm=utils.denorm, upscale=utils.upscale, logger=None, step=1):
+        utils.store_attr(self, locals())
+        self.num_images, self.wh = 5, (256, 256)
+
+    def before_fit(self):
+        self.mean, self.std = self.L.kwargs['cfg'].TRANSFORMERS.MEAN, self.L.kwargs['cfg'].TRANSFORMERS.STD 
+
+    def process_batch(self):
+        xb, yb = self.batch_read(self.L.batch)
+        preds = self.L.preds
+        num_channels = 1
+
+        xb = xb[:self.num_images]
+        yb = yb[:self.num_images].repeat(1,3,1,1)
+        preds = torch.sigmoid(preds[:self.num_images, ...])
+
+        xb = self.denorm(xb, self.mean, self.std)
+        xb = self.upscale(xb, self.wh)
+
+        yb = self.upscale(yb, self.wh)
+
+        preds = preds.max(1, keepdim=True)[0].repeat(1,3,1,1)
+        preds = self.upscale(preds, self.wh)
+
+        return xb, yb, preds
+    
+    def process_write_predictions(self):
+        #self.log_debug('tb predictions')
+        xb, yb, preds = self.process_batch() # takes last batch that been used
+        #self.log_debug(f"{xb.shape}, {yb.shape}, {preds.shape}")
+        summary_image = torch.cat([xb,yb,preds])
+        #self.log_debug(f"{summary_image.shape}")
+        grid = torchvision.utils.make_grid(summary_image, nrow=self.num_images, pad_value=4)
+        label = 'train predictions' if self.L.model.training else 'val_predictions'
+        self.writer.add_image(label, grid, self.L.n_epoch)
+        self.writer.flush()
+
+    def after_epoch(self):
+        if not self.L.model.training or self.L.n_epoch % self.step ==0:
+            self.process_write_predictions()
         
+
 class CheckpointCB(Callback):
-    def __init__(self, save_path, save_step=None):
+    def __init__(self, save_path, ema=False, save_step=None):
         utils.store_attr(self, locals())
         self.pct_counter = None if isinstance(self.save_step, int) else self.save_step
         
+    def do_saving(self, val='', save_ema=True):
+        m = self.L.model_ema if save_ema else self.L.model
+        name = m.name if hasattr(m, 'name') else None
+        state_dict =  utils.get_state_dict(m) 
+        torch.save({
+                'epoch': self.L.n_epoch,
+                'loss': self.L.loss,
+                'model_state': state_dict,
+                'opt_state': self.L.opt.state_dict(), 
+                'model_name': name, 
+            }, str(self.save_path / f'e{self.L.n_epoch}_t{self.L.total_epochs}_{val}.pth'))
+
     def after_epoch(self):
         save = False
-        if self.n_epoch == self.total_epochs - 1: save=True
-        elif isinstance(self.save_step, int): save = self.save_step % self.n_epoch == 0 
+        if self.L.n_epoch == self.L.total_epochs - 1: save=False
+        elif isinstance(self.save_step, int): save = self.save_step % self.L.n_epoch == 0 
         else:
-            if self.np_epoch > self.pct_counter:
+            if self.L.np_epoch > self.pct_counter:
                 save = True
                 self.pct_counter += self.save_step
         
-        if save:
-            torch.save({
-                            'epoch': self.n_epoch,
-                            'loss': self.loss,
-                            'model_state':self.model.state_dict(),
-                            'opt_state':self.opt.state_dict(),                    
-                        }, str(self.save_path / f'e{self.n_epoch}_t{self.total_epochs}_1e4l{int(1e4*self.loss)}.pth'))
-            
+        if save: self.do_saving('_after_epoch')
+
             
 class HooksCB(Callback):
     def __init__(self, func, layers, perc_start=.5, step=1, logger=None):

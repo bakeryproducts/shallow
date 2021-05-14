@@ -52,10 +52,11 @@ from shallow import utils
 
 # %%
 class Dataset:
-    def __init__(self, root, pattern):
+    def __init__(self, root, pattern, recursive=False):
         self.root = Path(root)
         self.pattern = pattern
-        self.files = sorted(list(self.root.glob(self.pattern)))
+        _files = self.root.rglob(self.pattern) if recursive else self.root.glob(self.pattern)
+        self.files = sorted(list(_files))
         self._is_empty('There is no matching files!')
         
     def apply_filter(self, filter_fn):

@@ -80,6 +80,26 @@ def in_docker(): return os.path.exists('/.dockerenv')
 
 def timestamp(): return '{:%Y_%b_%d_%H_%M_%S}'.format(datetime.datetime.now())
 
+def st(t): return t.shape, t.dtype, t.min(), t.max(), t.mean(), t.std()
+
+def to_cuda(l): return [i.cuda() for i in l]
+
+def upscale(tensor, size): return torch.nn.functional.interpolate(tensor, size=size)
+
+def denorm(images, mean=(0.46454108, 0.43718538, 0.39618185), std=(0.23577851, 0.23005974, 0.23109385)):
+    mean = torch.tensor(mean).view((1,3,1,1))
+    std = torch.tensor(std).view((1,3,1,1))
+    images = images * std + mean
+    return images
+
+def get_cb_by_instance(cbs, cls):
+    for cb in cbs:
+        if isinstance(cb, cls): return cb
+    return None
+
+def unwrap_model(model): return model.module if hasattr(model, 'module') else model
+def get_state_dict(model, unwrap_fn=unwrap_model): return unwrap_fn(model).state_dict()
+
 
 # %%
 def listify(o):
