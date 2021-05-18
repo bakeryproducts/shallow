@@ -164,6 +164,43 @@ class TBPredictionsCB(Callback):
             self.process_write_predictions()
         
 
+class TrainCB(Callback):
+    def __init__(self, batch_read=lambda x: x, logger=None): 
+        sh.utils.store_attr(self, locals())
+
+    def before_fit(self): 
+        self.cfg = self.L.kwargs['cfg']
+        self.freeze_enc = self.cfg.TRAIN.FREEZE_ENCODER
+
+    @sh.utils.on_train
+    def before_epoch(self):
+        if self.cfg.PARALLEL.DDP: self.L.dl.sampler.set_epoch(self.L.n_epoch)
+        if self.freeze_enc and self.L.np_epoch > .45:
+            self.freeze_enc = False
+            self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
+            utils.unwrap_model(self.L.model).encoder.requires_grad_(True)
+
+        for i in range(len(self.L.opt.param_groups)):
+            self.L.opt.param_groups[i]['lr'] = self.L.lr  
+
+    @sh.utils.on_train
+    def after_epoch(self): pass
+
+    def train_step(self):
+        xb, yb = self.batch_read(self.L.batch)
+        preds = self.L.model(xb)
+        self.L.preds = preds
+
+        loss = self.L.loss_func(self.L.preds['output'], yb)
+
+        self.L.loss = loss
+        self.L.loss.backward()
+        self.L.opt.step()
+        self.L.opt.zero_grad(set_to_none=True)
+
+        if self.cfg.TRAIN.EMA: self.L.model_ema.update(self.L.model)
+
+
 class CheckpointCB(Callback):
     def __init__(self, save_path, ema=False, save_step=None):
         utils.store_attr(self, locals())
