@@ -1,27 +1,3 @@
-# ---
-# jupyter:
-#   jupytext:
-#     formats: notebooks//ipynb,shallow//py:percent
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.9.1
-#   kernelspec:
-#     display_name: Python 3
-#     language: python
-#     name: python3
-# ---
-
-# %% tags=["active-ipynb"]
-# %load_ext autoreload
-# %autoreload 2
-# %matplotlib inline
-
-# %% [markdown]
-# # Imports
-
-# %%
 import time
 from functools import partial
 
@@ -31,10 +7,6 @@ from torch.utils.tensorboard import SummaryWriter
 from shallow import utils, meters
 
 
-# %% [markdown]
-# # Code
-
-# %%
 class CancelFitException(Exception): pass
 
 class Callback: 
@@ -172,7 +144,7 @@ class TrainCB(Callback):
         self.cfg = self.L.kwargs['cfg']
         self.freeze_enc = self.cfg.TRAIN.FREEZE_ENCODER
 
-    @sh.utils.on_train
+    @utils.on_train
     def before_epoch(self):
         if self.cfg.PARALLEL.DDP: self.L.dl.sampler.set_epoch(self.L.n_epoch)
         if self.freeze_enc and self.L.np_epoch > .45:
@@ -183,7 +155,7 @@ class TrainCB(Callback):
         for i in range(len(self.L.opt.param_groups)):
             self.L.opt.param_groups[i]['lr'] = self.L.lr  
 
-    @sh.utils.on_train
+    @utils.on_train
     def after_epoch(self): pass
 
     def train_step(self):
@@ -313,81 +285,3 @@ def append_stats_buffered(hook, mod, inp, outp, device=torch.device('cpu'), bins
     hists.push(outp.data.float().histc(bins,vmin,vmax))
 
 
-# %% [markdown]
-# # Tests
-
-# %% [markdown]
-# ### Hooks
-
-# %% tags=["active-ipynb"]
-# model = torch.nn.Sequential(torch.nn.Conv2d(3,5,1), torch.nn.Conv2d(5,1,1))
-#
-# hooks = Hooks(model, append_stats_buffered)
-#
-# inp = torch.zeros(5,3,16,16)
-
-# %% tags=["active-ipynb"]
-# with hooks:
-#     r = model(inp)
-#
-
-# %% tags=["active-ipynb"]
-# stats = [h.stats for h in hooks]
-
-# %%
-
-# %% [markdown]
-# ### Param sched
-
-# %% tags=["active-ipynb"]
-# import torch
-# import matplotlib.pyplot as plt
-#
-# from shallow import schedulers
-
-# %% tags=["active-ipynb"]
-# class Learner:
-#     def __init__(self, cbs):
-#         self.cbs = cbs
-#         self.lr = -1
-#         self.total_epochs = 100
-#         self.n_epoch = 13
-#         for c in self.cbs: c.learner=self
-#     
-#     def t(self):
-#         self('before_epoch')
-#         
-#     def tt(self):
-#         self('bla_bla')
-#         
-#     def __call__(self, name):
-#         for cb in self.cbs: getattr(cb, name, utils.noop())()
-
-# %% tags=["active-ipynb"]
-#
-# p = ParamScheduler('before_epoch', 'lr', schedulers.sched_lin(0,.1))
-
-# %% tags=["active-ipynb"]
-# l = Learner([p])
-# l.n_epoch = 88 # out of 100
-# l.t()
-# l.lr
-
-# %% [markdown]
-# ### Hooks
-
-# %% [markdown]
-# ## TB
-
-# %% tags=["active-ipynb"]
-# writer = SummaryWriter(comment='Demo')
-# mycallback = partial(TensorBoardCB, writer, track_weight=True, track_grad=True, metric_names=['val loss', 'accuracy'])
-#
-
-# %%
-
-# %%
-
-# %%
-
-# %%

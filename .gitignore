@@ -1,4 +1,6 @@
 test_data
+notebooks/tests/input/
+notebooks/tests/output/
 **/*.ipynb_*
 **/__py*
 dist

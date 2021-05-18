@@ -1,3 +1,23 @@
+import pickle
+from PIL import Image
+from pathlib import Path
+from functools import partial, reduce
+from collections import defaultdict
+import multiprocessing as mp
+from contextlib import contextmanager
+
+import cv2
+import torch
+import numpy as np
+from tqdm.auto import tqdm
+import albumentations as albu
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data.dataset import ConcatDataset as TorchConcatDataset
+
+from shallow.data import  *
+
+
 def check_field_is_none(field):
     if isinstance(field, dict):
         for _, val in field.items():
@@ -7,6 +27,38 @@ def check_field_is_none(field):
 
     return True
 
+
+def init_datasets(cfg):
+    """
+        DATASETS dictionary:
+            keys are custom names to use in unet.yaml
+            values are actual Datasets on desired folders
+    """
+    DATA_DIR = Path(cfg.INPUTS).absolute()
+    if not DATA_DIR.exists(): raise Exception(DATA_DIR)
+    mult = cfg['TRAIN']['HARD_MULT']
+    weights = cfg['TRAIN']['WEIGHTS']
+
+    AuxDataset = partial(ImageDataset, pattern='*.png')
+
+    DATASETS = {
+        "grid_1": AuxDataset(DATA_DIR/'grid1'),
+        "grid_2": AuxDataset(DATA_DIR/'grid2'),
+        "grid_3": AuxDataset(DATA_DIR/'grid3'),
+        "grid_4": AuxDataset(DATA_DIR/'grid4'),
+
+        "train_1": AuxDataset(DATA_DIR/'train1'),
+        "train_2": AuxDataset(DATA_DIR/'train2'),
+        "train_3": AuxDataset(DATA_DIR/'train3'),
+        "train_4": AuxDataset(DATA_DIR/'train4'),
+
+        "val_1": AuxDataset(DATA_DIR/'val1'),
+        "val_2": AuxDataset(DATA_DIR/'val2'),
+        "val_3": AuxDataset(DATA_DIR/'val3'),
+        "val_4": AuxDataset(DATA_DIR/'val4'),
+
+    }
+    return  DATASETS
 
 def create_datasets(cfg, all_datasets, dataset_types):
     """
@@ -26,17 +78,19 @@ def create_datasets(cfg, all_datasets, dataset_types):
             ds = TorchConcatDataset(datasets) if len(datasets)>1 else datasets[0] 
             converted_datasets[dataset_type] = ds
 
-        elif not check_field_is_none(data_field.FOLDS)
+        elif data_field.get("FOLDS", None) is not None and not check_field_is_none(data_field.FOLDS):
             assert check_field_is_none(data_field.DATASETS)
             datasets = {}
             for fold_id, fold_datasets_ids in data_field.FOLDS.items():
+                if fold_datasets_ids == (0,): continue
                 fold_datasets = [all_datasets[fold_dataset_id] for fold_dataset_id in fold_datasets_ids]
                 ds = TorchConcatDataset(fold_datasets) if len(fold_datasets)>1 else fold_datasets[0] 
                 datasets[fold_id] = ds
 
             converted_datasets[dataset_type] = datasets
         else:
-            raise Exception('INVALID DATASET/FOLDS cfg')
+            pass
+            #raise Exception('INVALID DATASET/FOLDS cfg')
 
     return converted_datasets
 
@@ -60,7 +114,8 @@ def build_datasets(cfg, mode_train=True, num_proc=4, dataset_types=['TRAIN', 'VA
     """
 
 
-    def train_trans_get(*args, **kwargs): return augs.get_aug(*args, **kwargs)
+    #def train_trans_get(*args, **kwargs): return augs.get_aug(*args, **kwargs)
+    def train_trans_get(*args, **kwargs): return None
 
     transform_factory = {
             'TRAIN':{'factory':TransformDataset, 'transform_getter':train_trans_get},

@@ -1,7 +1,7 @@
 from pathlib import Path
 from functools import partial
 from collections import OrderedDict
-from logger import logger
+from loguru import logger
 
 import torch
 import torch.nn as nn
@@ -10,12 +10,12 @@ from torch.nn import init
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 
-from mutils import *
+from shallow.mutils import *
 
 
 def model_select(model_id):
     MODELS = {
-            'unet-regnety_016-scse': partial(smp.Unet, encoder_name='timm-regnety_016', decoder_attention_type='scse')
+            'unet-regnety_016-scse': partial(smp.Unet, encoder_name='timm-regnety_016', decoder_attention_type='scse'),
             'unet-regnetx_032-scse': partial(smp.Unet, encoder_name='timm-regnetx_032', decoder_attention_type='scse')
             }
     model = MODELS[model_id]

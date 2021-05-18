@@ -1,0 +1,65 @@
+INPUTS: tests/input
+OUTPUTS: tests/output
+
+DATA:
+  TRAIN:
+    FOLDS: 
+        F0: ['train_1',  'grid_1']
+        F1: ['train_2',  'grid_2']
+        F2: ['train_3',  'grid_3']
+        F3: ['train_4',  'grid_4']
+
+    GPU_PRELOAD: False
+    PRELOAD: False
+    CACHE: False
+    MULTIPLY: {'rate':1}
+  VALID:
+    FOLDS: 
+        F0: ['val_1']
+        F1: ['val_2']
+        F2: ['val_3']
+        F3: ['val_4']
+    PRELOAD: False
+
+TRANSFORMERS:
+  TRAIN:
+    AUG: 'light_scale'
+  VALID:
+    AUG: 'val'
+  SSL:
+    AUG: 'ssl'
+  TEST:
+    AUG: 'test'
+  CROP: [512,512]
+  CROP_VAL: [512,512]
+  MEAN:
+  - 0.6226
+  - 0.4284
+  - 0.6705
+  STD:
+  - 0.1246
+  - 0.1719
+  - 0.0956
+
+TRAIN:
+  LRS: [0.00001, 0.0004, 0.000015, 2]
+  DOWNSCALE: 3
+  NUM_FOLDS: 4
+  SELECTIVE_BP: 1.
+  HARD_MULT: 1
+  EMA: 0.995
+  FREEZE_ENCODER: False
+  AMP: True
+  GPUS: [0,1,2,3]
+  NUM_WORKERS: 4
+  SAVE_STEP: 1.
+  SCALAR_STEP: 1
+  TB_STEP: 2
+  EPOCH_COUNT: 5
+  BATCH_SIZE: 16
+VALID:
+  STEP: 2
+  BATCH_SIZE: 16
+
+PARALLEL:
+  DDP: False
