@@ -34,6 +34,7 @@ def build_model(cfg):
 
     model = model.cuda()
     model.train()
+    if cfg.TRAIN.TORCHSCRIPT: model = torch.jit.script(model)
     return model 
 
 def get_optim(cfg, model):
@@ -49,7 +50,10 @@ def get_optim(cfg, model):
     return optimizer
 
 def wrap_ddp(cfg, model, sync_bn=False, broadcast_buffers=True, find_unused_parameters=True):
-    if sync_bn: model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    if sync_bn: 
+        assert not cfg.TRAIN.TORCHSCRIPT
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+
     if cfg.PARALLEL.DDP: 
         model = DistributedDataParallel(model, 
                                     device_ids=[cfg.PARALLEL.LOCAL_RANK],

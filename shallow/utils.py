@@ -196,3 +196,26 @@ def on_validation(f):
             return f(*args)
     return wrapper
 
+
+def jread(path):
+    with open(str(path), 'r') as f:
+        data = json.load(f)
+    return data
+
+def jdump(data, path):
+    with open(str(path), 'w') as f:
+        json.dump(data, f, indent=4)
+
+def filter_ban_str_in_name(s, bans): return any([(b in str(s)) for b in bans])
+
+def get_filenames(path, pattern, filter_out_func):
+    """
+    pattern : "*.json"
+    filter_out : function that return True if file name is acceptable
+    """
+
+    filenames = list(Path(path).glob(pattern))
+    assert (filenames), f'There is no matching filenames for {path}, {pattern}'
+    filenames = [fn for fn in filenames if not filter_out_func(fn)]
+    assert (filenames), f'There is no matching filenames for {filter_out_func}'
+    return filenames
