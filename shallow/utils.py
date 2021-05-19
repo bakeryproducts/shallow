@@ -1,26 +1,3 @@
-# ---
-# jupyter:
-#   jupytext:
-#     formats: notebooks//ipynb,shallow//py:percent
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.7.1
-#   kernelspec:
-#     display_name: Python 3
-#     language: python
-#     name: python3
-# ---
-
-# %% tags=["active-ipynb"]
-# import sys
-# sys.path.append('src')
-
-# %% [markdown]
-# # Imports
-
-# %%
 import os
 import datetime
 import multiprocessing as mp
@@ -34,13 +11,6 @@ from torchvision.transforms import ToPILImage
 from tqdm.auto import tqdm
 
 
-# %% tags=["active-ipynb"]
-# from tqdm.notebook import tqdm
-
-# %% [markdown]
-# # Code
-
-# %%
 @contextmanager
 def poolcontext(*args, **kwargs):
     pool = mp.Pool(*args, **kwargs)
@@ -65,7 +35,6 @@ def mp_func_gen(foo, args, n, progress=None):
     return results
 
 
-# %%
 def noop (x=None, *args, **kwargs): return x
 
 def noops(self, x=None, *args, **kwargs): return x
@@ -101,7 +70,6 @@ def unwrap_model(model): return model.module if hasattr(model, 'module') else mo
 def get_state_dict(model, unwrap_fn=unwrap_model): return unwrap_fn(model).state_dict()
 
 
-# %%
 def listify(o):
     if o is None: return []
     if isinstance(o, list): return o
@@ -143,7 +111,6 @@ class GetAttr:
     
 
 
-# %%
 class ListContainer():
     def __init__(self, items): self.items = listify(items)
     def __getitem__(self, idx):
@@ -163,7 +130,6 @@ class ListContainer():
 
 
 
-# %%
 def set_cuda_devices(gpu_idx):
     if os.environ.get('CUDA_VISIBLE_DEVICES') is None:
         gpus = ','.join([str(g) for g in gpu_idx])
@@ -206,7 +172,6 @@ def fig_to_array(fig):
     data = data.reshape(fig.canvas.get_width_height()[::-1]+ (3,))
     return data
 
-# %%
 def on_master(f):
     def wrapper(*args):
         if args[0].kwargs['cfg'].PARALLEL.IS_MASTER:
@@ -231,68 +196,3 @@ def on_validation(f):
             return f(*args)
     return wrapper
 
-# %% [markdown]
-# # Tests
-
-# %% [markdown]
-# ### Torch buffer
-
-# %% tags=["active-ipynb"]
-# ts = TorchBuffer()
-# [ts.push(torch.tensor(i)) for i in range(1, 31)]
-# (ts.buffer != 0).sum()
-
-# %% tags=["active-ipynb"]
-# ts = TorchBuffer(shape=(2,2), max_len=5)
-# [ts.push(torch.ones(2,2)*i) for i in range(1, 7)]
-# ts.buffer.shape, (ts.buffer != 0).sum()
-
-# %% tags=["active-ipynb"]
-# ts = TorchBuffer(device=torch.device('cuda:1'))
-# [ts.push(torch.tensor(i)) for i in range(1, 31)]
-# (ts.buffer != 0).sum()
-
-# %%
-
-# %% [markdown]
-# ### More
-
-# %% tags=["active-ipynb"]
-# def get_mean_and_std(dataset):
-#     '''Compute the mean and std value of dataset.'''
-#     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=2)
-#     mean = torch.zeros(3)
-#     std = torch.zeros(3)
-#     print('==> Computing mean and std..')
-#     for inputs, targets in dataloader:
-#         for i in range(3):
-#             mean[i] += inputs[:,i,:,:].mean()
-#             std[i] += inputs[:,i,:,:].std()
-#     mean.div_(len(dataset))
-#     std.div_(len(dataset))
-#     return mean, std
-#
-# def init_params(net):
-#     '''Init layer parameters.'''
-#     for m in net.modules():
-#         if isinstance(m, nn.Conv2d):
-#             init.kaiming_normal(m.weight, mode='fan_out')
-#             if m.bias:
-#                 init.constant(m.bias, 0)
-#         elif isinstance(m, nn.BatchNorm2d):
-#             init.constant(m.weight, 1)
-#             init.constant(m.bias, 0)
-#         elif isinstance(m, nn.Linear):
-#             init.normal(m.weight, std=1e-3)
-#             if m.bias:
-#                 init.constant(m.bias, 0)
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%

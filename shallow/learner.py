@@ -1,37 +1,9 @@
-# ---
-# jupyter:
-#   jupytext:
-#     formats: notebooks//ipynb,shallow//py:percent
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.7.1
-#   kernelspec:
-#     display_name: Python 3
-#     language: python
-#     name: python3
-# ---
-
-# %% tags=["active-ipynb"]
-# %load_ext autoreload
-# %autoreload 2
-# %matplotlib inline
-
-# %% [markdown]
-# # Imports
-
-# %%
 import torch
 import torch.nn as nn
 
 from shallow import utils
 
 
-# %% [markdown]
-# # Code
-
-# %%
 class CancelFitException(Exception): pass
 
 class Learner:
@@ -69,6 +41,3 @@ class Learner:
     def __call__(self, name):
         for cb in self.cbs: getattr(cb, name, utils.noop)()
 
-# %%
-
-# %%
