@@ -1,6 +1,7 @@
 test_data
 notebooks/tests/input/
 notebooks/tests/output/
+shallow/src
 **/*.ipynb_*
 **/__py*
 dist

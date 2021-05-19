@@ -24,11 +24,10 @@ def check_field_is_none(field):
             if val != (0,): return False 
     elif isinstance(field, list):
         if field != (0,): return False 
-
     return True
 
 
-def init_datasets(cfg):
+def init_datasets_example(cfg):
     """
         DATASETS dictionary:
             keys are custom names to use in unet.yaml
@@ -60,11 +59,23 @@ def init_datasets(cfg):
     }
     return  DATASETS
 
+def build_transform_fact_example():
+    #def train_trans_get(*args, **kwargs): return augs.get_aug(*args, **kwargs)
+    def train_trans_get(*args, **kwargs): return None
+
+    transform_factory = {
+            'TRAIN':{'factory':TransformDataset, 'transform_getter':train_trans_get},
+            'VALID':{'factory':TransformDataset, 'transform_getter':train_trans_get},
+            'TEST':{'factory':TransformDataset, 'transform_getter':train_trans_get},
+        }
+    return transform_factory
+
+
 def create_datasets(cfg, all_datasets, dataset_types):
     """
         Joins lists of datasets with TRAIN, VALID, ... types into concated datasets:
             {
-                "TRAIN": ConcatDataset1, | or in folds mode : "TRAIN": [FoldDs1_1, FOlds1_2, ...]
+                "TRAIN": ConcatDataset1, | or in folds mode : "TRAIN": {'F0':[ds0], 'F1':[ds1,ds2,...]}
                 "VALID": ConcatDataset2,
                 ...
             }
@@ -78,7 +89,7 @@ def create_datasets(cfg, all_datasets, dataset_types):
             ds = TorchConcatDataset(datasets) if len(datasets)>1 else datasets[0] 
             converted_datasets[dataset_type] = ds
 
-        elif data_field.get("FOLDS", None) is not None and not check_field_is_none(data_field.FOLDS):
+        elif 'FOLDS' in data_field and not check_field_is_none(data_field.FOLDS):
             assert check_field_is_none(data_field.DATASETS)
             datasets = {}
             for fold_id, fold_datasets_ids in data_field.FOLDS.items():
@@ -95,7 +106,7 @@ def create_datasets(cfg, all_datasets, dataset_types):
     return converted_datasets
 
 
-def build_datasets(cfg, mode_train=True, num_proc=4, dataset_types=['TRAIN', 'VALID', 'TEST'], fold_id=None):
+def build_datasets(cfg, transform_factory, init_datasets_fn, dataset_types=['TRAIN', 'VALID', 'TEST'], num_proc=4, fold_id=None):
     """
         Creates dictionary :
         {
@@ -112,18 +123,6 @@ def build_datasets(cfg, mode_train=True, num_proc=4, dataset_types=['TRAIN', 'VA
             preload_dataset = PreloadingDataset(MyDataset)
             augmented_dataset = TransformDataset(preload_dataset)
     """
-
-
-    #def train_trans_get(*args, **kwargs): return augs.get_aug(*args, **kwargs)
-    def train_trans_get(*args, **kwargs): return None
-
-    transform_factory = {
-            'TRAIN':{'factory':TransformDataset, 'transform_getter':train_trans_get},
-            'VALID':{'factory':TransformDataset, 'transform_getter':train_trans_get},
-            'VALID2':{'factory':TransformDataset, 'transform_getter':train_trans_get},
-            'TEST':{'factory':TransformDataset, 'transform_getter':train_trans_get},
-        }
-
     extend_factories = {
              'PRELOAD':partial(PreloadingDataset, num_proc=num_proc, progress=tqdm),
              'MULTIPLY':MultiplyDataset,
@@ -131,7 +130,7 @@ def build_datasets(cfg, mode_train=True, num_proc=4, dataset_types=['TRAIN', 'VA
     }
  
     # TODO create_datasets should take fold_id as an input 
-    datasets = create_datasets(cfg, init_datasets(cfg), dataset_types)
+    datasets = create_datasets(cfg, init_datasets_fn(cfg), dataset_types)
 
     if fold_id is not None:
         # fold mode, fold_id from cfg, F0, F1, ...
@@ -149,26 +148,6 @@ def build_datasets(cfg, mode_train=True, num_proc=4, dataset_types=['TRAIN', 'VA
     return datasets
 
 
-def create_transforms(cfg, transform_factories, dataset_types=['TRAIN', 'VALID', 'TEST']):
-    transformers = {}
-    for dataset_type in dataset_types:
-        aug_type = cfg.TRANSFORMERS[dataset_type]['AUG']
-        args={
-            'aug_type':aug_type,
-            'transforms_cfg':cfg.TRANSFORMERS
-        }
-        if transform_factories[dataset_type]['factory'] is not None:
-            transform_getter = transform_factories[dataset_type]['transform_getter'](**args)
-            transformer = partial(transform_factories[dataset_type]['factory'], transforms=transform_getter)
-        else:
-            transformer = lambda x: x
-        transformers[dataset_type] = transformer
-    return transformers    
-
-def apply_transforms_datasets(datasets, transforms):
-    return {dataset_type:transforms[dataset_type](dataset) for dataset_type, dataset in datasets.items()}
-
-
 def build_dataloaders(cfg, datasets, selective=False):
     dls = {}
     for kind, dataset in datasets.items():
@@ -179,7 +158,7 @@ def build_dataloader(cfg, dataset, mode, selective):
     drop_last = True
     sampler = None 
 
-    if cfg.PARALLEL.DDP and (mode == 'TRAIN' or mode == 'SSL'):
+    if cfg.PARALLEL.DDP:
         if sampler is None:
             sampler = DistributedSampler(dataset, num_replicas=cfg.PARALLEL.WORLD_SIZE, rank=cfg.PARALLEL.LOCAL_RANK, shuffle=True)
 

@@ -167,4 +167,21 @@ def create_extensions(cfg, datasets, extend_factories):
         extended_datasets[kind] = extend_dataset(ds, cfg.DATA[kind], extend_factories)
     return extended_datasets
 
+def create_transforms(cfg, transform_factories, dataset_types=['TRAIN', 'VALID', 'TEST']):
+    transformers = {}
+    for dataset_type in dataset_types:
+        aug_type = cfg.TRANSFORMERS[dataset_type]['AUG']
+        args={
+            'aug_type':aug_type,
+            'transforms_cfg':cfg.TRANSFORMERS
+        }
+        if transform_factories[dataset_type]['factory'] is not None:
+            transform_getter = transform_factories[dataset_type]['transform_getter'](**args)
+            transformer = partial(transform_factories[dataset_type]['factory'], transforms=transform_getter)
+        else:
+            transformer = lambda x: x
+        transformers[dataset_type] = transformer
+    return transformers    
 
+def apply_transforms_datasets(datasets, transforms):
+    return {dataset_type:transforms[dataset_type](dataset) for dataset_type, dataset in datasets.items()}
