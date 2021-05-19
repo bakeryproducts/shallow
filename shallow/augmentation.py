@@ -82,8 +82,6 @@ class Augmentator:
                                 ])
     
     def _ssl(self, p): return self.compose([
-                    self.FakeGlo(p=.3),
-                    self.Alights(p=.7),
                     albu.OneOf([
                         albu.HueSaturationValue(30,40,30),
                         albu.CLAHE(clip_limit=4),
