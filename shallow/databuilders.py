@@ -138,10 +138,6 @@ def build_datasets(cfg, transform_factory, init_datasets_fn, dataset_types=['TRA
         datasets['TRAIN'] = datasets['TRAIN'][fold_id] 
         datasets['VALID'] = datasets['VALID'][fold_id] 
 
-    if cfg.TRANSFORMERS.STD == (0,) and cfg.TRANSFORMERS.MEAN == (0,):
-        mean, std = mean_std_dataset(datasets['TRAIN'])
-        update_mean_std(cfg, mean, std)
-
     datasets = create_extensions(cfg, datasets, extend_factories)
     transforms = create_transforms(cfg, transform_factory, dataset_types)
     datasets = apply_transforms_datasets(datasets, transforms)
