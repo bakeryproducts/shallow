@@ -144,14 +144,13 @@ def build_datasets(cfg, transform_factory, init_datasets_fn, dataset_types=['TRA
     return datasets
 
 
-def build_dataloaders(cfg, datasets, selective=False):
+def build_dataloaders(cfg, datasets, **kwargs):
     dls = {}
     for kind, dataset in datasets.items():
-        dls[kind] = build_dataloader(cfg, dataset, kind, selective=selective)
+        dls[kind] = build_dataloader(cfg, dataset, kind, **kwargs)
     return dls
 
-def build_dataloader(cfg, dataset, mode, selective):
-    drop_last = True
+def build_dataloader(cfg, dataset, mode, **kwargs):
     sampler = None 
 
     if cfg.PARALLEL.DDP:
@@ -167,9 +166,8 @@ def build_dataloader(cfg, dataset, mode, selective):
         shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=True,
-        drop_last=drop_last,
-        collate_fn=None,
-        sampler=sampler,)
+        sampler=sampler,
+        **kwargs)
     return dl
 
 
