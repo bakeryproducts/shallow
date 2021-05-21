@@ -152,6 +152,21 @@ class TBPredictionsCB(Callback):
         if not self.L.model.training or self.L.n_epoch % self.step ==0:
             self.process_write_predictions()
         
+class FrozenEncoderCB(Callback):
+    def __init__(self, batch_read=lambda x: x, logger=None): 
+        sh.utils.store_attr(self, locals())
+
+    def before_fit(self): 
+        self.cfg = self.L.kwargs['cfg']
+        self.freeze_enc = self.cfg.TRAIN.FREEZE_ENCODER > 0.
+        if self.freeze_enc: utils.unwrap_model(self.L.model).encoder.requires_grad_(False)
+
+    def before_epoch(self):
+        if self.freeze_enc and self.L.np_epoch > self.cfg.TRAIN.FREEZE_ENCODER:
+            self.freeze_enc = False
+            self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
+            utils.unwrap_model(self.L.model).encoder.requires_grad_(True)
+
 
 class TrainCB(Callback):
     def __init__(self, batch_read=lambda x: x, logger=None): 
@@ -159,15 +174,10 @@ class TrainCB(Callback):
 
     def before_fit(self): 
         self.cfg = self.L.kwargs['cfg']
-        self.freeze_enc = self.cfg.TRAIN.FREEZE_ENCODER
 
     @utils.on_train
     def before_epoch(self):
         if self.cfg.PARALLEL.DDP: self.L.dl.sampler.set_epoch(self.L.n_epoch)
-        if self.freeze_enc and self.L.np_epoch > .45:
-            self.freeze_enc = False
-            self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
-            utils.unwrap_model(self.L.model).encoder.requires_grad_(True)
 
         for i in range(len(self.L.opt.param_groups)):
             self.L.opt.param_groups[i]['lr'] = self.L.lr  
