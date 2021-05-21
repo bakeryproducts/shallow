@@ -19,6 +19,7 @@ class ToTensor(albu_pt.ToTensorV2):
     def apply_to_mask(self, mask, **params): return torch.from_numpy(mask).permute((2,0,1))
     def apply(self, image, **params): return torch.from_numpy(image).permute((2,0,1))
 
+
 class Augmentator:
     def __init__(self, cfg, compose):
         self.cfg = cfg 
@@ -27,20 +28,15 @@ class Augmentator:
         self.crop_val_w, self.crop_val_h = self.cfg.CROP_VAL if self.cfg.CROP_VAL is not (0,) else seld.cfg.CROP
         self.compose = compose
         
-        self.mean = self.cfg.MEAN if self.cfg.MEAN is not (0,) else (0.46454108, 0.43718538, 0.39618185)
-        self.std = self.cfg.STD if self.cfg.STD is not (0,) else (0.23577851, 0.23005974, 0.23109385)
+        self.mean = self.cfg.MEAN 
+        self.std = self.cfg.STD 
     
 
     def get_aug(self, kind):
         if kind == 'val': return self.aug_val()
-        elif kind == 'val_forced': return self.aug_val_forced()
         elif kind == 'test': return self.aug_test ()
-        elif kind == 'light': return self.aug_light()
-        elif kind == 'light_scale': return self.aug_light_scale()
+        elif kind == 'train': return self.aug_train()
         elif kind == 'blank': return self.aug_blank()
-        elif kind == 'resize': return self.resize()
-        elif kind == 'wocrop': return self.aug_wocrop()
-        elif kind == 'ssl': return self.aug_ssl()
         else: raise Exception(f'Unknown aug : {kind}')
         
     def norm(self): return self.compose([albu.Normalize(mean=self.mean, std=self.std), ToTensor()])
@@ -76,23 +72,7 @@ class Augmentator:
                     albu.ChannelShuffle(),
                     ], p=p)
 
-    def aug_ssl(self): return self.compose([
-                                self._ssl(p=1.),
-                                self.norm()
-                                ])
-    
-    def _ssl(self, p): return self.compose([
-                    albu.OneOf([
-                        albu.HueSaturationValue(30,40,30),
-                        albu.CLAHE(clip_limit=4),
-                        albu.RandomBrightnessContrast((-0.5, .5), .3),
-                        albu.ColorJitter(brightness=.5, contrast=0.5, saturation=0.3, hue=0.3)
-                    ], p=.5),
-                    self.cutout(p=.3),
-                    self.blur(p=.2),
-                    ], p=p)
-
-    def aug_light_scale(self): return self.compose([
+    def aug_train(self): return self.compose([
                                                     self.multi_crop(), 
                                                     self.d4(),
                                                     self.additional_res(),
@@ -112,11 +92,7 @@ class Augmentator:
                     self.blur(p=.2),
             ], p=.4)
 
-    def aug_val_forced(self): return self.compose([albu.CropNonEmptyMaskIfExists(self.crop_h,self.crop_w), self.norm()])
     def aug_val(self): return self.compose([albu.CenterCrop(self.crop_val_h,self.crop_val_w), self.norm()])
-    def aug_light(self): return self.compose([albu.CenterCrop(self.crop_h,self.crop_w, p=1), albu.Flip(), albu.RandomRotate90(), self.norm()])
-    def aug_wocrop(self): return self.compose([self.resize(), albu.Flip(), albu.RandomRotate90(), self.norm()])
-    def aug_blank(self): return self.compose([self.resize()])
     def aug_test(self): return self.compose([self.resize(), self.norm()])
 
 

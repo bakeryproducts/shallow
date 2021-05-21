@@ -72,7 +72,7 @@ class TransformDataset:
             augmented = self.transforms(image=img, mask=mask)
             return augmented["image"], augmented["mask"]
         else:
-            return self.transforms(image=item[0], mask=None)['image']
+            return self.transforms(image=item[0])['image']
     
     def __len__(self):
         return len(self.dataset)
