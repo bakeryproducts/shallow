@@ -19,89 +19,60 @@ class ToTensor(albu_pt.ToTensorV2):
     def apply_to_mask(self, mask, **params): return torch.from_numpy(mask).permute((2,0,1))
     def apply(self, image, **params): return torch.from_numpy(image).permute((2,0,1))
 
+def augmentations_zoo(key, augmentor, p=1):
+    """
+        this should be a class, but it requires p, so kinda ugly atm
+    """
+    if key == 'd4':          augs = augmentor.compose([albu.Flip(), albu.RandomRotate90()] )
+    elif key == 'norm':      augs = augmentor.compose([albu.Normalize(mean=augmentor.mean, std=augmentor.std), ToTensor()] )
+    elif key == 'rand_crop': augs = albu.RandomCrop(augmentor.crop_h, augmentor.crop_w) 
+    elif key == 'resize':    augs = albu.Resize(augmentor.resize_h, augmentor.resize_w)
+    elif key == 'scale':     augs = albu.ShiftScaleRotate(0.1, 0.2, 45, p=p)
+    elif key == 'blur':      augs = albu.OneOf([albu.GaussianBlur()], p=p)
+    elif key == 'gamma':     augs = AddGammaCorrection(p=p)
+    elif key == 'cutout':    augs = albu.OneOf([
+                                        albu.Cutout(**augmentor.cutout_params),
+                                        albu.GridDropout(**augmentor.griddrop_params),
+                                        albu.CoarseDropout(**augmentor.coarsedrop_params)
+                                    ],p=p)
+    elif key == 'multi_crop': augs = albu.OneOf([
+                                        albu.CenterCrop(augmentor.crop_h, augmentor.crop_w, p=.2),
+                                        albu.RandomCrop(augmentor.crop_h, augmentor.crop_w, p=.8),
+                                    ], p=p)    
+    elif key == 'color_jit': augs =  albu.OneOf([
+                                        albu.HueSaturationValue(10,15,10),
+                                        albu.CLAHE(clip_limit=4),
+                                        albu.RandomBrightnessContrast(.4, .4),
+                                        albu.ChannelShuffle(),
+                                    ], p=p)
+    return augs
 
-class Augmentator:
+
+class AugmentatorBase:
     def __init__(self, cfg, compose):
         self.cfg = cfg 
         self.resize_w, self.resize_h = self.cfg.RESIZE
         self.crop_w, self.crop_h = self.cfg.CROP
         self.crop_val_w, self.crop_val_h = self.cfg.CROP_VAL if self.cfg.CROP_VAL is not (0,) else seld.cfg.CROP
         self.compose = compose
-        
         self.mean = self.cfg.MEAN 
         self.std = self.cfg.STD 
+        self.az = partial(augmentations_zoo, augmentor=self)
     
-
-    def get_aug(self, kind):
-        if kind == 'val': return self.aug_val()
-        elif kind == 'test': return self.aug_test ()
-        elif kind == 'train': return self.aug_train()
-        elif kind == 'blank': return self.aug_blank()
-        else: raise Exception(f'Unknown aug : {kind}')
-        
-    def norm(self): return self.compose([albu.Normalize(mean=self.mean, std=self.std), ToTensor()])
-    def rand_crop(self): albu.RandomCrop(self.crop_h,self.crop_w)
-    def crop_scale(self): return albu.RandomResizedCrop(self.crop_h, self.crop_w, scale=(.3,.7))
-    def resize(self): return albu.Resize(self.resize_h, self.resize_w)
-    def blur(self, p): return albu.OneOf([
-                        albu.GaussianBlur((3,9)),
-                        #albu.MotionBlur(),
-                        #albu.MedianBlur()
-                    ], p=p)
-    def scale(self, p): return albu.ShiftScaleRotate(0.1, 0.2, 45, p=p)
-    def cutout(self, p): return albu.OneOf([
-            albu.Cutout(24, 64, 64, 0, p=.3),
-            albu.GridDropout(0.5, fill_value=230, random_offset=True, p=.3),
-            albu.CoarseDropout(24, 64, 64, 16, 16, 16, 220, p=.4)
-        ],p=p)
-    
-    def d4(self): return self.compose([
-                    albu.Flip(),
-                    albu.RandomRotate90()
-                    ]) 
-
-    def multi_crop(self): return albu.OneOf([
-                    albu.CenterCrop(self.crop_h, self.crop_w, p=.2),
-                    albu.RandomCrop(self.crop_h, self.crop_w, p=.8),
-                    ], p=1)    
-
-    def color_jit(self, p): return albu.OneOf([
-                    albu.HueSaturationValue(10,15,10),
-                    albu.CLAHE(clip_limit=4),
-                    albu.RandomBrightnessContrast(.4, .4),
-                    albu.ChannelShuffle(),
-                    ], p=p)
-
-    def aug_train(self): return self.compose([
-                                                    self.multi_crop(), 
-                                                    self.d4(),
-                                                    self.additional_res(),
-                                                    self.norm()
-                                                    ])
-
-    def custom_augs(self, p): return albu.OneOf([
-                    AddGammaCorrection(p=.3),
-        ], p=p)
-
-    def additional_res(self):
-        return self.compose([
-                    self.scale(p=.2),
-                    self.custom_augs(p=.1),
-                    self.color_jit(p=.3),
-                    self.cutout(p=.1),
-                    self.blur(p=.2),
-            ], p=.4)
-
-    def aug_val(self): return self.compose([albu.CenterCrop(self.crop_val_h,self.crop_val_w), self.norm()])
-    def aug_test(self): return self.compose([self.resize(), self.norm()])
+    def get_aug(self, kind): return getattr(self, f'aug_{kind}', None)()
+    def aug_val(self): return self.compose([albu.CenterCrop(self.crop_val_h,self.crop_val_w), self.az('norm')])
+    def aug_test(self): return self.compose([self.az('resize'), self.az('norm')])
 
 
-def get_aug(aug_type, transforms_cfg, using_boxes=False, tag=False):
+
+def get_aug(Aug_class, aug_type, transforms_cfg, using_boxes=False, tag=False):
     """ aug_type (str): one of `val`, `test`, `light`, `medium`, `hard`
         transforms_cfg (dict): part of main cfg
     """
     compose = albu.Compose #if not tag else partial(albu.Compose, additional_targets={'mask1':'mask', 'mask2':'mask'})
-    auger = Augmentator(cfg=transforms_cfg, compose=compose)
-    return auger.get_aug(aug_type)
+    auger = Aug_class(cfg=transforms_cfg, compose=compose)
+    aug = auger.get_aug(aug_type)
+    assert aug is not None, aug_type
+    return  aug
 
 
