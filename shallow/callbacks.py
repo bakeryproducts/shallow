@@ -109,7 +109,6 @@ class MemChLastCB(Callback):
         # TODO : batch packer, same as reader?
         self.L.batch = (xb, yb)
 
-
 class FrozenEncoderCB(Callback):
     def __init__(self, batch_read=lambda x: x, logger=None): 
         sh.utils.store_attr(self, locals())
@@ -124,6 +123,75 @@ class FrozenEncoderCB(Callback):
             self.freeze_enc = False
             self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
             utils.unwrap_model(self.L.model).encoder.requires_grad_(True)
+
+class CudaCB(sh.callbacks.Callback):
+    def __init__(self, batch_read=lambda x: x, logger=None): 
+        sh.utils.store_attr(self, locals())
+
+    def before_fit(self): 
+        self.cfg = self.L.kwargs['cfg']
+        self.L.model.cuda()
+        if self.cfg.TRAIN.EMA > 0.: self.L.model_ema.cuda()
+
+    def before_batch(self):
+        xb, yb = self.batch_read(self.batch)
+        self.L.batch = xb.cuda(), yb.cuda()
+
+
+class TBMetricCB(Callback):
+    def __init__(self, writer, batch_read=lambda x: x, track_cb, train_metrics=None, validation_metrics=None, logger=None):
+        ''' train_metrics = {'losses':['train_loss', 'val_loss']}
+            val_metrics = {'metrics':['localization_f1']}
+        '''
+        sh.utils.store_attr(self, locals())
+        self.max_score = 0
+        self.save_score_threshold = .9
+
+    def before_fit(self): self.cfg = self.L.kwargs['cfg']
+
+    def parse_metrics(self, metric_collection):
+        if metric_collection is None : return
+        for category, metrics in metric_collection.items():
+            for metric_name in metrics:
+                metric_value = getattr(self, metric_name, None)
+                if metric_value is not None: 
+                    self.log_debug(f"{category + '/' + metric_name, metric_value, self.L.n_epoch}")
+                    self.writer.add_scalar(category + '/' + metric_name, metric_value, self.L.n_epoch)
+
+    def save_by_score(self, score, save_ema=False):
+        if score > self.max_score:
+            self.max_score = score
+            if score > self.save_score_threshold:
+                chpt_cb = get_cb_by_instance(self.L.cbs, CheckpointCB)
+                suffix = 'ema' if save_ema else 'val'
+                if chpt_cb is not None: chpt_cb.do_saving(f'cmax_{suffix}_{round(score, 4)}', save_ema=save_ema)
+
+    def after_epoch_train(self):
+        #self.log_debug('tb metric after train epoch')
+        self.train_loss = self.track_cb.epoch_loss
+        self.train_score =  self.track_cb.epoch_score
+        self.parse_metrics(self.train_metrics)
+
+    def after_epoch_valid(self):
+        #self.log_debug('tb metric after validation')
+        self.val_loss = self.track_cb.epoch_loss
+        self.val_score =  self.track_cb.epoch_score
+        self.parse_metrics(self.validation_metrics)
+        self.save_by_score(self.val_score, False)
+        self.val_score = None
+        self.val_loss = None
+
+    @utils.on_validation
+    def before_epoch(self):
+        self.ema_val_score =  self.track_cb.ema_epoch_score
+        self.parse_metrics(self.validation_metrics)
+        self.save_by_score(self.ema_val_score, True)
+        self.ema_val_score = None
+            
+    def after_epoch(self):
+        if self.L.model.training: self.after_epoch_train()
+        else: self.after_epoch_valid()
+        self.writer.flush()
 
 
 class TBPredictionsCB(Callback):
@@ -171,7 +239,7 @@ class TBPredictionsCB(Callback):
 
 class TrainCB(Callback):
     def __init__(self, batch_read=lambda x: x, logger=None): 
-        sh.utils.store_attr(self, locals())
+        utils.store_attr(self, locals())
 
     @utils.on_train
     def after_epoch(self): pass
@@ -258,7 +326,6 @@ class HooksCB(Callback):
     def after_epoch(self): self.do_once = True
 
 
-# %%
 class Hook():
     def __init__(self, m, f): self.m, self.f = m, f
     def attach(self): self.hook = self.m.register_forward_hook(partial(self.f, self))

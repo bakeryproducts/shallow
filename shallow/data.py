@@ -196,3 +196,10 @@ def create_transforms(cfg, transform_factories, dataset_types=['TRAIN', 'VALID',
 
 def apply_transforms_datasets(datasets, transforms):
     return {dataset_type:transforms[dataset_type](dataset) for dataset_type, dataset in datasets.items()}
+
+
+def count_folds(cfg):
+    n = 0
+    for fid, dataset_idxs in cfg.DATA.TRAIN.FOLDS.items():
+        if dataset_idxs != (0,): n+=1
+    return n
