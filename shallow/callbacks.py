@@ -93,6 +93,23 @@ class TimerCB(Callback):
             estd = ((et.p(self.perc) - em) + (em - et.p(1-self.perc))) / 2
             self.log_info(f'\tEpoch average time: {em: .3f} +- {estd: .3f} s')
         
+class MemChLastCB(Callback):
+    def __init__(self, batch_read=lambda x: x, logger=None, step=1):
+        utils.store_attr(self, locals())
+
+    def before_fit(self): 
+        self.cfg = self.L.kwargs['cfg']
+        self.L.model = self.L.model.to(memory_format=torch.channels_last)
+        if self.cfg.TRAIN.EMA: self.L.ema_model = self.L.ema_model.to(memory_format=torch.channels_last)
+
+    def after_batch(self):
+        xb, yb = self.batch_read(self.L.batch)
+        xb = xb.to(memory_format=torch.channels_last)
+        yb = yb.to(memory_format=torch.channels_last)
+        # TODO : batch packer, same as reader?
+        self.L.batch = (xb, yb)
+
+
 class TBPredictionsCB(Callback):
     def __init__(self, writer, batch_read=lambda x: x, denorm=utils.denorm, upscale=utils.upscale, logger=None, step=1):
         utils.store_attr(self, locals())
