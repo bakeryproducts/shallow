@@ -106,7 +106,7 @@ def create_datasets(cfg, all_datasets, dataset_types):
     return converted_datasets
 
 
-def build_datasets(cfg, transform_factory, init_datasets_fn, dataset_types=['TRAIN', 'VALID', 'TEST'], num_proc=4, fold_id=None):
+def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['TRAIN', 'VALID', 'TEST'], num_proc=4, fold_id=None):
     """
         Creates dictionary :
         {
@@ -130,7 +130,7 @@ def build_datasets(cfg, transform_factory, init_datasets_fn, dataset_types=['TRA
     }
  
     # TODO create_datasets should take fold_id as an input 
-    datasets = create_datasets(cfg, init_datasets_fn(cfg), dataset_types)
+    datasets = create_datasets(cfg, predefined_datasets, dataset_types)
 
     if fold_id is not None:
         # fold mode, fold_id from cfg, F0, F1, ...
