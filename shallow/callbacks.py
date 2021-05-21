@@ -110,6 +110,22 @@ class MemChLastCB(Callback):
         self.L.batch = (xb, yb)
 
 
+class FrozenEncoderCB(Callback):
+    def __init__(self, batch_read=lambda x: x, logger=None): 
+        sh.utils.store_attr(self, locals())
+
+    def before_fit(self): 
+        self.cfg = self.L.kwargs['cfg']
+        self.freeze_enc = self.cfg.TRAIN.FREEZE_ENCODER > 0.
+        if self.freeze_enc: utils.unwrap_model(self.L.model).encoder.requires_grad_(False)
+
+    def before_epoch(self):
+        if self.freeze_enc and self.L.np_epoch > self.cfg.TRAIN.FREEZE_ENCODER:
+            self.freeze_enc = False
+            self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
+            utils.unwrap_model(self.L.model).encoder.requires_grad_(True)
+
+
 class TBPredictionsCB(Callback):
     def __init__(self, writer, batch_read=lambda x: x, denorm=utils.denorm, upscale=utils.upscale, logger=None, step=1):
         utils.store_attr(self, locals())
@@ -152,28 +168,17 @@ class TBPredictionsCB(Callback):
         if not self.L.model.training or self.L.n_epoch % self.step ==0:
             self.process_write_predictions()
         
-class FrozenEncoderCB(Callback):
-    def __init__(self, batch_read=lambda x: x, logger=None): 
-        sh.utils.store_attr(self, locals())
-
-    def before_fit(self): 
-        self.cfg = self.L.kwargs['cfg']
-        self.freeze_enc = self.cfg.TRAIN.FREEZE_ENCODER > 0.
-        if self.freeze_enc: utils.unwrap_model(self.L.model).encoder.requires_grad_(False)
-
-    def before_epoch(self):
-        if self.freeze_enc and self.L.np_epoch > self.cfg.TRAIN.FREEZE_ENCODER:
-            self.freeze_enc = False
-            self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
-            utils.unwrap_model(self.L.model).encoder.requires_grad_(True)
-
 
 class TrainCB(Callback):
     def __init__(self, batch_read=lambda x: x, logger=None): 
         sh.utils.store_attr(self, locals())
 
+    @utils.on_train
+    def after_epoch(self): pass
     def before_fit(self): 
         self.cfg = self.L.kwargs['cfg']
+        self.amp = self.cfg.TRAIN.AMP
+        if self.amp: self.amp_scaler = torch.cuda.amp.GradScaler()
 
     @utils.on_train
     def before_epoch(self):
@@ -182,21 +187,25 @@ class TrainCB(Callback):
         for i in range(len(self.L.opt.param_groups)):
             self.L.opt.param_groups[i]['lr'] = self.L.lr  
 
-    @utils.on_train
-    def after_epoch(self): pass
-
     def train_step(self):
         xb, yb = self.batch_read(self.L.batch)
         preds = self.L.model(xb)
         self.L.preds = preds
 
-        loss = self.L.loss_func(self.L.preds['output'], yb)
+        with torch.cuda.amp.autocast(enabled=self.amp):
+            loss = self.L.loss_func(self.L.preds['output'], yb)
 
-        self.L.loss = loss
-        self.L.loss.backward()
-        self.L.opt.step()
+        if self.amp:
+            l = self.amp_scaler.scale(loss)
+            l.backward()
+            self.amp_scaler.step(self.L.opt)
+            self.amp_scaler.update()
+        else:
+            self.L.loss = loss
+            self.L.loss.backward()
+            self.L.opt.step()
+
         self.L.opt.zero_grad(set_to_none=True)
-
         if self.cfg.TRAIN.EMA: self.L.model_ema.update(self.L.model)
 
 
