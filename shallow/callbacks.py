@@ -22,27 +22,18 @@ class ParamSchedulerCB(Callback):
         setattr(self, phase, self.set_param)
     def set_param(self): setattr(self.L, self.pname, self.sched_func(self.np_epoch))
     
+def batch_transform_cuda(b):
+    xb,yb = b
+    return {'xb': xb.cuda(), 'yb': yb.cuda()}
+
 class SetupLearnerCB(Callback):
-    def __init__(self, batch_transform=utils.to_cuda): self.batch_transform = batch_transform
+    def __init__(self, batch_transform=batch_transform_cuda): utils.store_attr(self, locals())
+    def before_fit(self): 
+        self.cfg = self.L.kwargs['cfg']
+        self.L.model.cuda()
+        if self.cfg.TRAIN.EMA > 0.: self.L.model_ema.cuda()
     def before_batch(self): self.L.batch = self.batch_transform(self.L.batch)
-    def before_fit(self): self.model.cuda()
 
-class TrackResultsCB(Callback):
-    def before_epoch(self): self.accs,self.losses,self.samples_count = [],[],[]
-        
-    def after_epoch(self):
-        n = sum(self.ns)
-        print(self.n_epoch, self.model.training, sum(self.losses)/n, sum(self.accs)/n)
-        
-    def after_batch(self):
-        xb, yb = self.batch
-        n = xb.shape[0]
-        acc = (self.preds.argmax(dim=1)==yb).float().sum().item()
-        self.accs.append(acc)
-        self.samples_count.append(n)
-
-        if self.model.training:
-            self.losses.append(self.loss.detach().item()*n)
 
 class LRFinderCB(Callback):
     def before_fit(self):
@@ -98,19 +89,16 @@ class MemChLastCB(Callback):
         utils.store_attr(self, locals())
 
     def before_fit(self): 
+        self.log_debug(f'USING MEM CHANNELS LAST CALLBACK')
         self.cfg = self.L.kwargs['cfg']
         self.L.model = self.L.model.to(memory_format=torch.channels_last)
         if self.cfg.TRAIN.EMA: self.L.ema_model = self.L.ema_model.to(memory_format=torch.channels_last)
 
     def after_batch(self):
-        xb, yb = self.batch_read(self.L.batch)
-        xb = xb.to(memory_format=torch.channels_last)
-        yb = yb.to(memory_format=torch.channels_last)
-        # TODO : batch packer, same as reader?
-        self.L.batch = (xb, yb)
+        self.L.batch = [i.to(memory_format=torch.channels_last) for i in self.batch_read(self.L.batch)]
 
 class FrozenEncoderCB(Callback):
-    def __init__(self, batch_read=lambda x: x, logger=None): 
+    def __init__(self, logger=None): 
         sh.utils.store_attr(self, locals())
 
     def before_fit(self): 
@@ -124,22 +112,10 @@ class FrozenEncoderCB(Callback):
             self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
             utils.unwrap_model(self.L.model).encoder.requires_grad_(True)
 
-class CudaCB(sh.callbacks.Callback):
-    def __init__(self, batch_read=lambda x: x, logger=None): 
-        sh.utils.store_attr(self, locals())
-
-    def before_fit(self): 
-        self.cfg = self.L.kwargs['cfg']
-        self.L.model.cuda()
-        if self.cfg.TRAIN.EMA > 0.: self.L.model_ema.cuda()
-
-    def before_batch(self):
-        xb, yb = self.batch_read(self.batch)
-        self.L.batch = xb.cuda(), yb.cuda()
 
 
 class TBMetricCB(Callback):
-    def __init__(self, writer, batch_read=lambda x: x, track_cb, train_metrics=None, validation_metrics=None, logger=None):
+    def __init__(self, writer, track_cb, train_metrics=None, validation_metrics=None, logger=None):
         ''' train_metrics = {'losses':['train_loss', 'val_loss']}
             val_metrics = {'metrics':['localization_f1']}
         '''
@@ -203,7 +179,8 @@ class TBPredictionsCB(Callback):
         self.mean, self.std = self.L.kwargs['cfg'].TRANSFORMERS.MEAN, self.L.kwargs['cfg'].TRANSFORMERS.STD 
 
     def process_batch(self):
-        xb, yb = self.batch_read(self.L.batch)
+        batch = self.batch_read(self.L.batch)
+        xb, yb = batch['xb'], batch['yb']
         preds = self.L.preds
         num_channels = 1
 
@@ -251,12 +228,12 @@ class TrainCB(Callback):
     @utils.on_train
     def before_epoch(self):
         if self.cfg.PARALLEL.DDP: self.L.dl.sampler.set_epoch(self.L.n_epoch)
-
         for i in range(len(self.L.opt.param_groups)):
             self.L.opt.param_groups[i]['lr'] = self.L.lr  
 
     def train_step(self):
-        xb, yb = self.batch_read(self.L.batch)
+        batch = self.batch_read(self.L.batch)
+        xb, yb = batch['xb'], batch['yb']
         preds = self.L.model(xb)
         self.L.preds = preds
 

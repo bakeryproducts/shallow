@@ -9,7 +9,7 @@ class CancelFitException(Exception): pass
 class Learner:
     def __init__(self, model, opt, dls, loss_func, lr, cbs, batch_bar, epoch_bar, val_rate=1, **kwargs):
         utils.store_attr(self, locals())
-        for cb in self.cbs: cb.learner = self
+        for cb in self.cbs: cb.L = self
 
     def one_batch(self):
         self('before_batch')
