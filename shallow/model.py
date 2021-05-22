@@ -11,9 +11,11 @@ import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 
 from shallow.mutils import *
+from shallow.mutils import _init_encoder
+from shallow.utils import check_field_is_none
 
 
-def model_select(model_id):
+def model_select_example(model_id):
     MODELS = {
             'unet-regnety_016-scse': partial(smp.Unet, encoder_name='timm-regnety_016', decoder_attention_type='scse'),
             'unet-regnetx_032-scse': partial(smp.Unet, encoder_name='timm-regnetx_032', decoder_attention_type='scse')
@@ -21,14 +23,14 @@ def model_select(model_id):
     model = MODELS[model_id]
     return model
 
-def build_model(cfg):
-    model = model_select(cfg.TRAIN.MODEL)()
+def build_model(cfg, mod_select):
+    model = mod_select(cfg.TRAIN.MODEL)()
     if cfg.TRAIN.INIT_MODEL: 
         logger.log('DEBUG', f'Init model: {cfg.TRAIN.INIT_MODEL}') 
         model = _load_model_state(model, cfg.TRAIN.INIT_MODEL)
-    elif cfg.TRAIN.INIT_ENCODER != (0,): 
-        if cfg.TRAIN.FOLD_IDX == -1: enc_weights_name = cfg.TRAIN.INIT_ENCODER[0]
-        else: enc_weights_name = cfg.TRAIN.INIT_ENCODER[cfg.TRAIN.FOLD_IDX]
+    elif not check_field_is_none(cfg.TRAIN.INIT_ENCODER):
+        if cfg.TRAIN.FOLD_ID == '': enc_weights_name = cfg.TRAIN.INIT_ENCODER[0]
+        else: enc_weights_name = cfg.TRAIN.INIT_ENCODER[cfg.TRAIN.FOLD_ID]
         _init_encoder(model, enc_weights_name)
     else: pass
 
@@ -54,6 +56,7 @@ def wrap_ddp(cfg, model, sync_bn=False, broadcast_buffers=True, find_unused_para
         assert not cfg.TRAIN.TORCHSCRIPT
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
+    #logger.log('DEBUG', f'DDP wrapper, {model, cfg}') 
     if cfg.PARALLEL.DDP: 
         model = DistributedDataParallel(model, 
                                     device_ids=[cfg.PARALLEL.LOCAL_RANK],

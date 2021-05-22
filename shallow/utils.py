@@ -172,29 +172,35 @@ def fig_to_array(fig):
     data = data.reshape(fig.canvas.get_width_height()[::-1]+ (3,))
     return data
 
+
+
+
 def on_master(f):
     def wrapper(*args):
-        if args[0].kwargs['cfg'].PARALLEL.IS_MASTER:
+        if args[0].L.kwargs['cfg'].PARALLEL.IS_MASTER:
             return f(*args)
     return wrapper
 
 def on_epoch_step(f):
     def wrapper(*args):
-        if (args[0].n_epoch % args[0].step) == 0:
+        if (args[0].L.n_epoch % args[0].L.step) == 0:
             return f(*args)
     return wrapper
 
 def on_train(f):
     def wrapper(*args):
-        if args[0].model.training:
+        if args[0].L.model.training:
             return f(*args)
     return wrapper
 
 def on_validation(f):
     def wrapper(*args):
-        if not args[0].model.training:
+        if not args[0].L.model.training:
             return f(*args)
     return wrapper
+
+
+
 
 
 def jread(path):
@@ -219,3 +225,12 @@ def get_filenames(path, pattern, filter_out_func):
     filenames = [fn for fn in filenames if not filter_out_func(fn)]
     assert (filenames), f'There is no matching filenames for {filter_out_func}'
     return filenames
+
+def check_field_is_none(field):
+    if isinstance(field, dict):
+        for _, val in field.items():
+            if val != (0,) and val != '': return False 
+    elif isinstance(field, list):
+        if field != (0,) and val != '': return False 
+    return True
+

@@ -16,15 +16,8 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data.dataset import ConcatDataset as TorchConcatDataset
 
 from shallow.data import  *
+from shallow.utils import check_field_is_none
 
-
-def check_field_is_none(field):
-    if isinstance(field, dict):
-        for _, val in field.items():
-            if val != (0,): return False 
-    elif isinstance(field, list):
-        if field != (0,): return False 
-    return True
 
 
 def init_datasets_example(cfg):
@@ -157,7 +150,8 @@ def build_dataloader(cfg, dataset, mode, **kwargs):
         if sampler is None:
             sampler = DistributedSampler(dataset, num_replicas=cfg.PARALLEL.WORLD_SIZE, rank=cfg.PARALLEL.LOCAL_RANK, shuffle=True)
 
-    num_workers = cfg.TRAIN.NUM_WORKERS 
+    MAX_PROC = 16
+    num_workers = cfg.TRAIN.NUM_WORKERS #if mode=='TRAIN' else MAX_PROC
     shuffle = sampler is None
 
     dl = DataLoader(

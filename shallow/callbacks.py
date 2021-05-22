@@ -20,7 +20,7 @@ class ParamSchedulerCB(Callback):
     def __init__(self, phase, pname, sched_func):
         self.pname, self.sched_func = pname, sched_func
         setattr(self, phase, self.set_param)
-    def set_param(self): setattr(self.L, self.pname, self.sched_func(self.np_epoch))
+    def set_param(self): setattr(self.L, self.pname, self.sched_func(self.L.np_epoch))
     
 def batch_transform_cuda(b):
     xb,yb = b
@@ -31,7 +31,6 @@ class SetupLearnerCB(Callback):
     def before_fit(self): 
         self.cfg = self.L.kwargs['cfg']
         self.L.model.cuda()
-        if self.cfg.TRAIN.EMA > 0.: self.L.model_ema.cuda()
     def before_batch(self): self.L.batch = self.batch_transform(self.L.batch)
 
 
@@ -99,7 +98,7 @@ class MemChLastCB(Callback):
 
 class FrozenEncoderCB(Callback):
     def __init__(self, logger=None): 
-        sh.utils.store_attr(self, locals())
+        utils.store_attr(self, locals())
 
     def before_fit(self): 
         self.cfg = self.L.kwargs['cfg']
@@ -113,13 +112,12 @@ class FrozenEncoderCB(Callback):
             utils.unwrap_model(self.L.model).encoder.requires_grad_(True)
 
 
-
 class TBMetricCB(Callback):
     def __init__(self, writer, track_cb, train_metrics=None, validation_metrics=None, logger=None):
         ''' train_metrics = {'losses':['train_loss', 'val_loss']}
             val_metrics = {'metrics':['localization_f1']}
         '''
-        sh.utils.store_attr(self, locals())
+        utils.store_attr(self, locals())
         self.max_score = 0
         self.save_score_threshold = .9
 
@@ -138,7 +136,7 @@ class TBMetricCB(Callback):
         if score > self.max_score:
             self.max_score = score
             if score > self.save_score_threshold:
-                chpt_cb = get_cb_by_instance(self.L.cbs, CheckpointCB)
+                chpt_cb = utils.get_cb_by_instance(self.L.cbs, CheckpointCB)
                 suffix = 'ema' if save_ema else 'val'
                 if chpt_cb is not None: chpt_cb.do_saving(f'cmax_{suffix}_{round(score, 4)}', save_ema=save_ema)
 
@@ -159,10 +157,11 @@ class TBMetricCB(Callback):
 
     @utils.on_validation
     def before_epoch(self):
-        self.ema_val_score =  self.track_cb.ema_epoch_score
-        self.parse_metrics(self.validation_metrics)
-        self.save_by_score(self.ema_val_score, True)
-        self.ema_val_score = None
+        if self.cfg.TRAIN.EMA > 0.:
+            self.ema_val_score =  self.track_cb.ema_epoch_score
+            self.parse_metrics(self.validation_metrics)
+            self.save_by_score(self.ema_val_score, True)
+            self.ema_val_score = None
             
     def after_epoch(self):
         if self.L.model.training: self.after_epoch_train()

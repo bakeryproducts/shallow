@@ -6,7 +6,6 @@ import torch.nn as nn
 from torch import optim
 from torch.nn import init
 import torch.nn.functional as F
-from torch.nn.parallel import DistributedDataParallel
 
 
 def scale_lr(lr, cfg): return lr * float(cfg.TRAIN.BATCH_SIZE * cfg.PARALLEL.WORLD_SIZE)/256.
@@ -33,7 +32,6 @@ def _load_model_state(model, path):
 
 
 def _init_encoder(model, src):
-    logger.log('DEBUG', f'Init encoder: {src}') 
     enc_state = torch.load(src)['model_state']
     if "head.fc.weight" not in enc_state: 
         enc_state["head.fc.weight"] = None
