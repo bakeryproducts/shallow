@@ -258,7 +258,7 @@ class CheckpointCB(Callback):
         utils.store_attr(self, locals())
         self.pct_counter = None if isinstance(self.save_step, int) else self.save_step
         
-    def do_saving(self, val='', save_ema=True):
+    def do_saving(self, val='', save_ema=False):
         m = self.L.model_ema if save_ema else self.L.model
         name = m.name if hasattr(m, 'name') else None
         state_dict =  utils.get_state_dict(m) 
@@ -279,7 +279,8 @@ class CheckpointCB(Callback):
                 save = True
                 self.pct_counter += self.save_step
         
-        if save: self.do_saving('_after_epoch')
+        save_ema = self.L.kwargs['cfg'].TRAIN.EMA > 0.
+        if save: self.do_saving('_after_epoch', save_ema=save_ema)
 
             
 class HooksCB(Callback):
