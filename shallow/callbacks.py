@@ -142,6 +142,7 @@ class TBMetricCB(Callback):
 
     def after_epoch_train(self):
         #self.log_debug('tb metric after train epoch')
+        self.lr = getattr(self.track_cb, 'lr', None)
         self.train_loss = self.track_cb.epoch_loss
         self.train_score =  self.track_cb.epoch_score
         self.parse_metrics(self.train_metrics)

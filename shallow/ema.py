@@ -25,10 +25,10 @@ class ModelEmaV2(nn.Module):
     WONT WORK WITH SYNCBN AT THE MOMENT
 
     """
-    def __init__(self, model, decay=0.9999, device=None):
+    def __init__(self, model, decay=0.9999, device=None, copy=True):
         super(ModelEmaV2, self).__init__()
-        # make a copy of the model for accumulating moving average of weights
-        self.module = deepcopy(model)
+        # make a copy of the model for accumulating moving average of weights, but copy False option for using with torch hooks. dont be stupid with this!
+        self.module = deepcopy(model) if copy else model
         self.module.eval()
         self.decay = decay
         self.device = device  # perform ema on different device from model if set
