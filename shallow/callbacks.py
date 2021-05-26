@@ -91,10 +91,12 @@ class MemChLastCB(Callback):
         self.log_debug(f'USING MEM CHANNELS LAST CALLBACK')
         self.cfg = self.L.kwargs['cfg']
         self.L.model = self.L.model.to(memory_format=torch.channels_last)
-        if self.cfg.TRAIN.EMA: self.L.ema_model = self.L.ema_model.to(memory_format=torch.channels_last)
+        #if self.cfg.TRAIN.EMA > 0: self.L.model_ema = self.L.model_ema.to(memory_format=torch.channels_last)
 
-    def after_batch(self):
-        self.L.batch = [i.to(memory_format=torch.channels_last) for i in self.batch_read(self.L.batch)]
+    def before_batch(self):
+        #self.L.batch = [i.to(memory_format=torch.channels_last) for i in self.batch_read(self.L.batch)]
+        self.L.batch['xb'].to(memory_format=torch.channels_last) 
+
 
 class FrozenEncoderCB(Callback):
     def __init__(self, logger=None): 
