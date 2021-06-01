@@ -87,13 +87,14 @@ def parse_model_path(p):
     epoch = name.split('_')[0]
     return int(epoch[1:])
 
-def get_last_model_name(src):
+def get_last_model_name(src, after_epoch=False):
     # assumes that model name is of type e500_blabla.pth, sorted by epoch #500
     model_names = list(Path(src).glob('*.pth'))
     assert model_names != [], 'No valid models at init path'
 
     res = []
     for i, m in enumerate(model_names):
+        if not after_epoch and 'after_epoch' in str(m): continue
         epoch = parse_model_path(m)
         res.append([i,epoch])
     idx = sorted(res, key=lambda x: -x[1])[0][0]

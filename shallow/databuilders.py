@@ -99,7 +99,7 @@ def create_datasets(cfg, all_datasets, dataset_types):
     return converted_datasets
 
 
-def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['TRAIN', 'VALID', 'TEST'], num_proc=4, fold_id=None):
+def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['TRAIN', 'VALID', 'TEST'], num_proc=4, fold_id=None, ext_last=False):
     """
         Creates dictionary :
         {
@@ -131,9 +131,10 @@ def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['
         datasets['TRAIN'] = datasets['TRAIN'][fold_id] 
         datasets['VALID'] = datasets['VALID'][fold_id] 
 
-    datasets = create_extensions(cfg, datasets, extend_factories)
+    if not ext_last: datasets = create_extensions(cfg, datasets, extend_factories)
     transforms = create_transforms(cfg, transform_factory, dataset_types)
     datasets = apply_transforms_datasets(datasets, transforms)
+    if ext_last: datasets = create_extensions(cfg, datasets, extend_factories)
     return datasets
 
 

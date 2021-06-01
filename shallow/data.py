@@ -123,6 +123,7 @@ class PreloadingDataset:
         for xb,yb in dl:
             for x,y in zip(xb.numpy(), yb.numpy()):
                 data.append([x,y])
+        del dl
         return data
 
 

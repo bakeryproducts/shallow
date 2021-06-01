@@ -10,8 +10,8 @@ from torch.nn import init
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 
-from shallow.mutils import *
-from shallow.mutils import _init_encoder
+#from shallow.mutils import *
+from shallow.mutils import _init_encoder, _load_model_state
 from shallow.utils import check_field_is_none
 
 
@@ -46,7 +46,7 @@ def get_optim(cfg, model):
     opt = optim.AdamW
     opt_kwargs = {'amsgrad':True, 'weight_decay':1e-3}
     optimizer = opt(tencent_trick(model), lr=lr, **opt_kwargs)
-    if cfg.TRAIN.INIT_MODEL: 
+    if cfg.TRAIN.INIT_MODEL and cfg.TRAIN.INIT_OPT: 
         st =  _load_opt_state(model, cfg.TRAIN.INIT_MODEL)
         optimizer.load_state_dict(st)
     return optimizer
