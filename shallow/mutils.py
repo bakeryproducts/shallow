@@ -38,14 +38,24 @@ def _init_encoder(model, src):
         enc_state["head.fc.bias"] = None
     model.encoder.load_state_dict(enc_state)
 
+class ModelUnwrap(nn.Module):
+    def __init__(self, model, read_pred):
+        super(ModelUnwrap, self).__init__()
+        self.model = model
+        self.read_pred = read_pred
+        
+    def forward(self, x): return self.read_pred(self.model(x))
+
 class FoldModel(nn.Module):
-    def __init__(self, models):
+    def __init__(self, models, read_pred=lambda x:x, write_pred=lambda x:x):
         super(FoldModel, self).__init__()
         self.ms = models
+        self.read_pred = read_pred
+        self.write_pred = write_pred
         
     def forward(self, x):
-        res = torch.stack([m(x) for m in self.ms])
-        return res.mean(0)
+        res = torch.stack([self.read_pred(m(x)) for m in self.ms])
+        return self.write_pred(res.mean(0))
 
 def tencent_trick(model):
     """
