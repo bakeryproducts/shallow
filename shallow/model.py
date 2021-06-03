@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 
 #from shallow.mutils import *
-from shallow.mutils import _init_encoder, _load_model_state
+from shallow.mutils import _init_encoder, load_model_state, load_optim_state, _load_state
 from shallow.utils import check_field_is_none
 
 
@@ -27,7 +27,9 @@ def build_model(cfg, mod_select):
     model = mod_select(cfg.TRAIN.MODEL)()
     if cfg.TRAIN.INIT_MODEL: 
         logger.log('DEBUG', f'Init model: {cfg.TRAIN.INIT_MODEL}') 
-        model = _load_model_state(model, cfg.TRAIN.INIT_MODEL)
+        #st = _load_state(cfg.TRAIN.INIT_MODEL, 'model_state')
+        #print(st)
+        load_model_state(model, cfg.TRAIN.INIT_MODEL)
     elif not check_field_is_none(cfg.TRAIN.INIT_ENCODER):
         if cfg.TRAIN.FOLD_ID == '': enc_weights_name = cfg.TRAIN.INIT_ENCODER[0]
         else: enc_weights_name = cfg.TRAIN.INIT_ENCODER[cfg.TRAIN.FOLD_ID]
@@ -40,15 +42,13 @@ def build_model(cfg, mod_select):
     return model 
 
 def get_optim(cfg, model):
-    base_lr = 1e-4# should be overriden in LR scheduler anyway
-    lr = base_lr if not cfg.PARALLEL.DDP else scale_lr(base_lr, cfg) 
+    lr = 1e-4 if not cfg.PARALLEL.DDP else scale_lr(base_lr, cfg) 
     
     opt = optim.AdamW
     opt_kwargs = {'amsgrad':True, 'weight_decay':1e-3}
     optimizer = opt(tencent_trick(model), lr=lr, **opt_kwargs)
     if cfg.TRAIN.INIT_MODEL and cfg.TRAIN.INIT_OPT: 
-        st =  _load_opt_state(model, cfg.TRAIN.INIT_MODEL)
-        optimizer.load_state_dict(st)
+        load_optim_state(optimizer, cfg.TRAIN.INIT_MODEL)
     return optimizer
 
 def wrap_ddp(cfg, model, sync_bn=False, broadcast_buffers=True, find_unused_parameters=True):

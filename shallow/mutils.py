@@ -17,18 +17,15 @@ def load_model(cfg, model_folder_path, eval_mode=True):
     if eval_mode: model.eval()
     return model
 
-def _load_opt_state(model, path):
+def _load_state(path, key):
     path = Path(path)
     if path.suffix != '.pth': path = get_last_model_name(path)
-    opt_state = torch.load(path)['opt_state']
-    return opt_state
+    state = torch.load(path, map_location='cpu').get(key, None)
+    return state
 
-def _load_model_state(model, path):
-    path = Path(path)
-    if path.suffix != '.pth': path = get_last_model_name(path)
-    state_dict = torch.load(path)['model_state']
-    model.load_state_dict(state_dict)
-    return model
+def load_model_state(model, path): model.load_state_dict(_load_state(path, 'model_state'))
+def load_optim_state(optim, path): optim.load_state_dict(_load_state(path, 'optim_state'))
+def load_scaler_state(scaler, path): scaler.load_state_dict(_load_state(path, 'scaler_state'))
 
 
 def _init_encoder(model, src):

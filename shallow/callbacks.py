@@ -115,13 +115,13 @@ class FrozenEncoderCB(Callback):
 
 
 class TBMetricCB(Callback):
-    def __init__(self, writer, track_cb, train_metrics=None, validation_metrics=None, logger=None):
+    def __init__(self, writer, track_cb, save_score_threshold=.9, train_metrics=None, validation_metrics=None, logger=None):
         ''' train_metrics = {'losses':['train_loss', 'val_loss']}
             val_metrics = {'metrics':['localization_f1']}
         '''
         utils.store_attr(self, locals())
-        self.max_score = 0
-        self.save_score_threshold = .9
+        self.max_score = -1
+        self.save_score_threshold = save_score_threshold
 
     def before_fit(self): self.cfg = self.L.kwargs['cfg']
 
@@ -264,12 +264,15 @@ class CheckpointCB(Callback):
     def do_saving(self, val='', save_ema=False):
         m = self.L.model_ema if save_ema else self.L.model
         name = m.name if hasattr(m, 'name') else None
-        state_dict =  utils.get_state_dict(m) 
+        model_state_dict =  utils.get_state_dict(m) 
+        amp_scaler = self.L.amp_scaler if hasattr(self.L, 'amp_scaler') else None
+        scaler_state = amp_scaler.state_dict() if amp_scaler is not None else None
         torch.save({
                 'epoch': self.L.n_epoch,
                 'loss': self.L.loss,
-                'model_state': state_dict,
-                'opt_state': self.L.opt.state_dict(), 
+                'model_state': model_state_dict,
+                'optim_state': self.L.opt.state_dict(), 
+                'scaler_state': scaler_state,
                 'model_name': name, 
             }, str(self.save_path / f'e{self.L.n_epoch}_t{self.L.total_epochs}_{val}.pth'))
 
