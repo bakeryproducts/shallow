@@ -51,16 +51,16 @@ def augmentations_zoo(key, augmentor, p=1):
 class AugmentatorBase:
     def __init__(self, cfg, compose):
         self.cfg = cfg 
-        self.resize_w, self.resize_h = self.cfg.RESIZE
-        self.crop_w, self.crop_h = self.cfg.CROP
-        self.crop_val_w, self.crop_val_h = self.cfg.CROP_VAL if self.cfg.CROP_VAL is not (0,) else seld.cfg.CROP
+        self.resize_h, self.resize_w = self.cfg.RESIZE
+        self.crop_h, self.crop_w = self.cfg.CROP
+        self.crop_val_h, self.crop_val_w = self.cfg.CROP_VAL if self.cfg.CROP_VAL is not (0,) else seld.cfg.CROP
         self.compose = compose
         self.mean = self.cfg.MEAN 
         self.std = self.cfg.STD 
         self.az = partial(augmentations_zoo, augmentor=self)
     
     def get_aug(self, kind): return getattr(self, f'aug_{kind}', None)()
-    def aug_val(self): return self.compose([albu.CenterCrop(self.crop_val_h,self.crop_val_w), self.az('norm')])
+    def aug_val(self): return self.compose([albu.CenterCrop(self.crop_val_h, self.crop_val_w), self.az('norm')])
     def aug_test(self): return self.compose([self.az('resize'), self.az('norm')])
 
 
