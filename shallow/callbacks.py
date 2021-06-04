@@ -270,6 +270,7 @@ class CheckpointCB(Callback):
         torch.save({
                 'epoch': self.L.n_epoch,
                 'loss': self.L.loss,
+                'lr': self.L.lr,
                 'model_state': model_state_dict,
                 'optim_state': self.L.opt.state_dict(), 
                 'scaler_state': scaler_state,
