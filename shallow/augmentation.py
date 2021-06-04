@@ -60,8 +60,6 @@ class AugmentatorBase:
         self.az = partial(augmentations_zoo, augmentor=self)
     
     def get_aug(self, kind): return getattr(self, f'aug_{kind}', None)()
-    def aug_val(self): return self.compose([albu.CenterCrop(self.crop_val_h, self.crop_val_w), self.az('norm')])
-    def aug_test(self): return self.compose([self.az('resize'), self.az('norm')])
 
 
 
