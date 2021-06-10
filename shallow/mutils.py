@@ -54,23 +54,42 @@ class FoldModel(nn.Module):
         res = torch.stack([self.read_pred(m(x)) for m in self.ms])
         return self.write_pred(res.mean(0))
 
-def tencent_trick(model):
+def configure_optim_groups(model):
     """
-    Divide parameters into 2 groups.
-    First group is BNs and all biases.
-    Second group is the remaining model's parameters.
-    Weight decay will be disabled in first group (aka tencent trick).
+        https://github.com/karpathy/minGPT/commit/bbbdac74fa9b2e55574d70056163ffbae42310c1
     """
-    decay, no_decay = [], []
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            continue  # frozen weights
-        if len(param.shape) == 1 or name.endswith(".bias"):
-            no_decay.append(param)
-        else:
-            decay.append(param)
-    return [{'params': no_decay, 'weight_decay': 0.0},
-            {'params': decay}]
+    decay = set()
+    no_decay = set()
+    whitelist_weight_modules = (torch.nn.Linear, )
+    blacklist_weight_modules = (torch.nn.LayerNorm, torch.nn.Embedding)
+    for mn, m in model.named_modules():
+        for pn, p in m.named_parameters():
+            fpn = '%s.%s' % (mn, pn) if mn else pn # full param name
+
+            if pn.endswith('bias'):
+                # all biases will not be decayed
+                no_decay.add(fpn)
+            elif pn.endswith('weight') and isinstance(m, whitelist_weight_modules):
+                # weights of whitelist modules will be weight decayed
+                decay.add(fpn)
+            elif pn.endswith('weight') and isinstance(m, blacklist_weight_modules):
+                # weights of blacklist modules will NOT be weight decayed
+                no_decay.add(fpn)
+    # special case the position embedding parameter in the root GPT module as not decayed
+    [no_decay.add(i) for i in ('module.encoder.model.cls_token', 'module.encoder.model.patch_embed.proj.weight', 'module.encoder.model.pos_embed')]
+
+
+    # validate that we considered every parameter
+    param_dict = {pn: p for pn, p in model.named_parameters()}
+    inter_params = decay & no_decay
+    union_params = decay | no_decay
+    assert len(inter_params) == 0, "parameters %s made it into both decay/no_decay sets!" % (str(inter_params), )
+    assert len(param_dict.keys() - union_params) == 0, "parameters %s were not separated into either decay/no_decay set!" \
+                                                % (str(param_dict.keys() - union_params), )
+
+    return [ {"params": [param_dict[pn] for pn in sorted(list(decay))]},
+        {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0} ]
+
 
 def init_model(model):
     for m in model.modules():
