@@ -12,7 +12,7 @@ def gather_tensor(tensor):
      tensor = torch.vstack(tensor_list) 
      return tensor 
   
- def reduce_tensor(tensor): 
+def reduce_tensor(tensor): 
      rt = tensor.clone() 
      torch.distributed.all_reduce(rt, op=torch.distributed.ReduceOp.SUM) 
      rt /= ( torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1) 
