@@ -27,9 +27,8 @@ def build_model(cfg, mod_select):
     model = mod_select(cfg.TRAIN.MODEL)()
     if cfg.TRAIN.INIT_MODEL: 
         logger.log('DEBUG', f'Init model: {cfg.TRAIN.INIT_MODEL}') 
-        #st = _load_state(cfg.TRAIN.INIT_MODEL, 'model_state')
-        #print(st)
         load_model_state(model, cfg.TRAIN.INIT_MODEL)
+
     elif not check_field_is_none(cfg.TRAIN.INIT_ENCODER):
         if cfg.TRAIN.FOLD_ID == '': enc_weights_name = cfg.TRAIN.INIT_ENCODER[0]
         else: enc_weights_name = cfg.TRAIN.INIT_ENCODER[cfg.TRAIN.FOLD_ID]
