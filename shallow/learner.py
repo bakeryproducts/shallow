@@ -1,6 +1,3 @@
-import torch
-import torch.nn as nn
-
 from shallow import utils
 
 
@@ -8,7 +5,7 @@ class CancelFitException(Exception): pass
 
 class Learner:
     def __init__(self, model, opt, dls, loss_func, lr, cbs, batch_bar, epoch_bar, val_rate=1, **kwargs):
-        utils.store_attr(self, locals())
+        utils.file_op.store_attr(self, locals())
         for cb in self.cbs: cb.L = self
 
     def one_batch(self):
@@ -39,5 +36,5 @@ class Learner:
         self('after_fit')
         
     def __call__(self, name):
-        for cb in self.cbs: getattr(cb, name, utils.noop)()
+        for cb in self.cbs: getattr(cb, name, utils.common.noop)()
 

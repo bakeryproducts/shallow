@@ -1,18 +1,12 @@
-from pathlib import Path
 from functools import partial
-from collections import OrderedDict
-from loguru import logger
 
 import torch
-import torch.nn as nn
 from torch import optim
-from torch.nn import init
-import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
+from loguru import logger
 
-#from shallow.mutils import *
-from shallow.mutils import _init_encoder, load_model_state, load_optim_state, _load_state
-from shallow.utils import check_field_is_none
+from shallow.utils.nn import _init_encoder, load_model_state, load_optim_state, _load_state
+from shallow.utils.common import check_field_is_none
 
 
 def model_select_example(model_id):

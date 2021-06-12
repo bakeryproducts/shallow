@@ -2,7 +2,7 @@
 Ross Wightman
 """
 import torch
-from shallow.mutils import unwrap_model
+from shallow.utils.nn import unwrap_model
 
 
 def gather_tensor(tensor): 

@@ -27,7 +27,7 @@ def batch_transform_cuda(b):
     return {'xb': xb.cuda(), 'yb': yb.cuda()}
 
 class SetupLearnerCB(Callback):
-    def __init__(self, batch_transform=batch_transform_cuda): utils.store_attr(self, locals())
+    def __init__(self, batch_transform=batch_transform_cuda): utils.file_op.store_attr(self, locals())
     def before_fit(self): 
         self.cfg = self.L.kwargs['cfg']
         self.L.model.cuda()
@@ -85,7 +85,7 @@ class TimerCB(Callback):
         
 class MemChLastCB(Callback):
     def __init__(self, batch_read=lambda x: x, logger=None, step=1):
-        utils.store_attr(self, locals())
+        utils.file_op.store_attr(self, locals())
 
     def before_fit(self): 
         self.log_debug(f'USING MEM CHANNELS LAST CALLBACK')
@@ -100,18 +100,18 @@ class MemChLastCB(Callback):
 
 class FrozenEncoderCB(Callback):
     def __init__(self, logger=None): 
-        utils.store_attr(self, locals())
+        utils.file_op.store_attr(self, locals())
 
     def before_fit(self): 
         self.cfg = self.L.kwargs['cfg']
         self.freeze_enc = self.cfg.TRAIN.FREEZE_ENCODER > 0.
-        if self.freeze_enc: utils.unwrap_model(self.L.model).encoder.requires_grad_(False)
+        if self.freeze_enc: utils.common.unwrap_model(self.L.model).encoder.requires_grad_(False)
 
     def before_epoch(self):
         if self.freeze_enc and self.L.np_epoch > self.cfg.TRAIN.FREEZE_ENCODER:
             self.freeze_enc = False
             self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
-            utils.unwrap_model(self.L.model).encoder.requires_grad_(True)
+            utils.common.unwrap_model(self.L.model).encoder.requires_grad_(True)
 
 
 class TBMetricCB(Callback):
@@ -119,7 +119,7 @@ class TBMetricCB(Callback):
         ''' train_metrics = {'losses':['train_loss', 'val_loss']}
             val_metrics = {'metrics':['localization_f1']}
         '''
-        utils.store_attr(self, locals())
+        utils.file_op.store_attr(self, locals())
         self.max_score = -1
         self.save_score_threshold = save_score_threshold
 
@@ -138,7 +138,7 @@ class TBMetricCB(Callback):
         if score > self.max_score:
             self.max_score = score
             if score > self.save_score_threshold:
-                chpt_cb = utils.get_cb_by_instance(self.L.cbs, CheckpointCB)
+                chpt_cb = utils.call.get_cb_by_instance(self.L.cbs, CheckpointCB)
                 suffix = 'ema' if save_ema else 'val'
                 if chpt_cb is not None: chpt_cb.do_saving(f'cmax_{suffix}_{round(score, 4)}', save_ema=save_ema)
 
@@ -158,7 +158,7 @@ class TBMetricCB(Callback):
         self.val_score = None
         self.val_loss = None
 
-    @utils.on_validation
+    @utils.call.on_validation
     def before_epoch(self):
         if self.cfg.TRAIN.EMA > 0.:
             self.ema_val_score =  self.track_cb.ema_epoch_score
@@ -173,8 +173,8 @@ class TBMetricCB(Callback):
 
 
 class TBPredictionsCB(Callback):
-    def __init__(self, writer, batch_read=lambda x: x, denorm=utils.denorm, upscale=utils.upscale, logger=None, step=1):
-        utils.store_attr(self, locals())
+    def __init__(self, writer, batch_read=lambda x: x, denorm=utils.common.denorm, upscale=utils.common.upscale, logger=None, step=1):
+        utils.file_op.store_attr(self, locals())
         self.num_images, self.wh = 5, (256, 256)
 
     def before_fit(self):
@@ -218,16 +218,16 @@ class TBPredictionsCB(Callback):
 
 class TrainCB(Callback):
     def __init__(self, batch_read=lambda x: x, logger=None): 
-        utils.store_attr(self, locals())
+        utils.file_op.store_attr(self, locals())
 
-    @utils.on_train
+    @utils.call.on_train
     def after_epoch(self): pass
     def before_fit(self): 
         self.cfg = self.L.kwargs['cfg']
         self.amp = self.cfg.TRAIN.AMP
         if self.amp: self.amp_scaler = torch.cuda.amp.GradScaler()
 
-    @utils.on_train
+    @utils.call.on_train
     def before_epoch(self):
         if self.cfg.PARALLEL.DDP: self.L.dl.sampler.set_epoch(self.L.n_epoch)
         for i in range(len(self.L.opt.param_groups)):
@@ -258,13 +258,13 @@ class TrainCB(Callback):
 
 class CheckpointCB(Callback):
     def __init__(self, save_path, ema=False, save_step=None):
-        utils.store_attr(self, locals())
+        utils.file_op.store_attr(self, locals())
         self.pct_counter = None if isinstance(self.save_step, int) else self.save_step
         
     def do_saving(self, val='', save_ema=False):
         m = self.L.model_ema if save_ema else self.L.model
         name = m.name if hasattr(m, 'name') else None
-        model_state_dict =  utils.get_state_dict(m) 
+        model_state_dict =  utils.nn.get_state_dict(m) 
         amp_scaler = self.L.amp_scaler if hasattr(self.L, 'amp_scaler') else None
         scaler_state = amp_scaler.state_dict() if amp_scaler is not None else None
         torch.save({
@@ -292,21 +292,21 @@ class CheckpointCB(Callback):
             
 class HooksCB(Callback):
     def __init__(self, func, layers, perc_start=.5, step=1, logger=None):
-        utils.store_attr(self, locals()) 
+        utils.file_op.store_attr(self, locals()) 
         self.hooks = Hooks(self.layers, self.func)
         self.do_once = True
     
-    @utils.on_epoch_step
+    @utils.call.on_epoch_step
     def before_batch(self):
         if self.do_once and self.np_batch > self.perc_start:
             self.log_debug(f'Gathering activations at batch {self.np_batch}')
             self.do_once = False
             self.hooks.attach()
     
-    @utils.on_epoch_step
+    @utils.call.on_epoch_step
     def after_batch(self):
         if self.hooks.is_attached(): self.hooks.detach()
-    @utils.on_epoch_step
+    @utils.call.on_epoch_step
     def after_epoch(self): self.do_once = True
 
 
@@ -317,7 +317,7 @@ class Hook():
         if hasattr(self, 'hook') :self.hook.remove()
     def __del__(self): self.detach()
         
-class Hooks(utils.ListContainer):
+class Hooks(utils.file_op.ListContainer):
     def __init__(self, ms, f): super().__init__([Hook(m, f) for m in ms])
     def __enter__(self, *args):
         self.attach()
@@ -362,9 +362,9 @@ def append_stats(hook, mod, inp, outp, bins=100, vmin=0, vmax=0):
     hists.append(outp.data.cpu().histc(bins,vmin,vmax))
         
 def append_stats_buffered(hook, mod, inp, outp, device=torch.device('cpu'), bins=100, vmin=0, vmax=0):
-    if not hasattr(hook,'stats'): hook.stats = (utils.TorchBuffer(shape=(1,), device=device),
-                                                utils.TorchBuffer(shape=(1,), device=device),
-                                                utils.TorchBuffer(shape=(bins,), device=device)
+    if not hasattr(hook,'stats'): hook.stats = (utils.common.TorchBuffer(shape=(1,), device=device),
+                                                utils.common.TorchBuffer(shape=(1,), device=device),
+                                                utils.common.TorchBuffer(shape=(bins,), device=device)
                                                )
     means,stds,hists = hook.stats
     means.push(outp.data.mean())

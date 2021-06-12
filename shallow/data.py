@@ -1,18 +1,17 @@
+import os
+import yaml
 from pathlib import Path
 from functools import lru_cache, partial
 
-import os
 import cv2
-import yaml
+import torch
 import numpy as np
 from PIL import Image
 from tqdm.auto import tqdm
 import albumentations as albu
-import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import ConcatDataset as ConcatDataset
 
-from shallow import utils
 
 
 class Dataset:
@@ -107,14 +106,8 @@ class PreloadingDataset:
         self.dataset = dataset
         self.num_proc = num_proc
         self.progress = progress
-        if self.num_proc:
-            self.data = self.preload_data_torch()
-            #self.data = utils.mp_func_gen(self.preload_data,
-            #                                 range(len(self.dataset)),
-            #                                 n=self.num_proc,
-            #                                 progress=progress)
-        else:
-            self.data = self.preload_data(range(len(self.dataset)))
+        if self.num_proc: self.data = self.preload_data_torch()
+        else: self.data = self.preload_data(range(len(self.dataset)))
         
     def preload_data_torch(self):
         dl = torch.utils.data.DataLoader(self.dataset, batch_size=64, drop_last=False, num_workers=self.num_proc, prefetch_factor=1)
@@ -124,16 +117,6 @@ class PreloadingDataset:
             for x,y in zip(xb.numpy(), yb.numpy()):
                 data.append([x,y])
         del dl
-        return data
-
-
-    def preload_data(self, args):
-        idxs = args
-        data = []
-        if self.progress is not None and not self.num_proc: idxs = self.progress(idxs)
-        for i in idxs:
-            r = self.dataset.__getitem__(i)
-            data.append(r)
         return data
     
     def __getitem__(self, idx):

@@ -1,9 +1,6 @@
-import os
 import shutil
 from pathlib import Path
 from functools import partial
-from datetime import datetime
-from collections import defaultdict
 
 import numpy as np
 
@@ -35,16 +32,16 @@ def create_split_from_polys(filenames, split_names):
     return a,b
 
 def select_samples_from_polys(name):
-    data = utils.jread(Path(f'input/split_jsons/{name}.json'))
-    val_poly = utils.json_record_to_poly(data[0])[0]
+    data = utils.file_op.jread(Path(f'input/split_jsons/{name}.json'))
+    val_poly = utils.file_op.json_record_to_poly(data[0])[0]
     
     glo_json = Path(f'input/hm/train/{name}.json')
     val_names = []
     
-    data = utils.jread(glo_json)
+    data = utils.file_op.jread(glo_json)
     cnt = 0
     for i,d in enumerate(data):
-        p = utils.json_record_to_poly(d)[0]
+        p = utils.file_op.json_record_to_poly(d)[0]
         if val_poly.contains(p.centroid) and cnt < 20:
             cnt += 1
             val_names.append(str(i).zfill(6) + '.png')
@@ -53,7 +50,7 @@ def select_samples_from_polys(name):
 
 def copy_split(split, root, dst_path):
     p = dst_path / split.relative_to(root)
-    os.makedirs(str(p.parent), exist_ok=True)
+    p.parent.mkdir(exist_ok=True)
     shutil.copy(str(split), str(p))
     
 def create_save_splits(root, dst_path, split_pct=None):

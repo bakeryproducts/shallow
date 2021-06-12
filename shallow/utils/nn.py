@@ -8,6 +8,9 @@ from torch.nn import init
 import torch.nn.functional as F
 
 
+def unwrap_model(model): return model.module if hasattr(model, 'module') else model
+def get_state_dict(model, unwrap_fn=unwrap_model): return unwrap_fn(model).state_dict()
+
 def scale_lr(lr, cfg): return lr * float(cfg.TRAIN.BATCH_SIZE * cfg.PARALLEL.WORLD_SIZE)/256.
 
 def load_model(cfg, model_folder_path, eval_mode=True):
