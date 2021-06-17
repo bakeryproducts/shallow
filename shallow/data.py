@@ -106,16 +106,22 @@ class PreloadingDataset:
         self.dataset = dataset
         self.num_proc = num_proc
         self.progress = progress
-        if self.num_proc: self.data = self.preload_data_torch()
-        else: self.data = self.preload_data(range(len(self.dataset)))
+        self.data = self.preload_data_torch()
         
     def preload_data_torch(self):
         dl = torch.utils.data.DataLoader(self.dataset, batch_size=64, drop_last=False, num_workers=self.num_proc, prefetch_factor=1)
         data = []
         if self.progress is not None and not self.num_proc: dl = self.progress(dl)
-        for xb,yb in dl:
-            for x,y in zip(xb.numpy(), yb.numpy()):
-                data.append([x,y])
+
+        for item in dl:
+            if isinstance(item, tuple):
+                xb, yb = item
+                for x,y in zip(xb.numpy(), yb.numpy()):
+                    data.append([x,y])
+            else:
+                for x in item.numpy():
+                    data.append(x)
+
         del dl
         return data
     
