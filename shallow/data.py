@@ -114,7 +114,7 @@ class PreloadingDataset:
         if self.progress is not None and not self.num_proc: dl = self.progress(dl)
 
         for item in dl:
-            if isinstance(item, tuple):
+            if isinstance(item, tuple) or isinstance(item, list):
                 xb, yb = item
                 for x,y in zip(xb.numpy(), yb.numpy()):
                     data.append([x,y])
