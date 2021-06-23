@@ -17,8 +17,9 @@ def model_select_example(model_id):
     model = MODELS[model_id]
     return model
 
-def build_model(cfg, mod_select):
-    model = mod_select(cfg.TRAIN.MODEL)()
+def build_model(cfg, mod_select, MODEL=None):
+    if MODEL is None : MODEL = cfg.TRAIN.MODEL
+    model = mod_select(MODEL)()
     if cfg.TRAIN.INIT_MODEL: 
         logger.log('DEBUG', f'Init model: {cfg.TRAIN.INIT_MODEL}') 
         load_model_state(model, cfg.TRAIN.INIT_MODEL)
