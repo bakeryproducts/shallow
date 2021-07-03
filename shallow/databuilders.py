@@ -68,13 +68,13 @@ def create_datasets(cfg, all_datasets, dataset_types):
     for dataset_type in dataset_types:
         data_field = cfg.DATA[dataset_type]
         if data_field.DATASETS != (0,):
-            assert check_field_is_none(data_field.FOLDS)
+            assert check_field_is_none(data_field, "FOLDS")
             datasets = [all_datasets[ds] for ds in data_field.DATASETS]
             ds = TorchConcatDataset(datasets) if len(datasets)>1 else datasets[0] 
             converted_datasets[dataset_type] = ds
 
         elif 'FOLDS' in data_field and not check_field_is_none(data_field.FOLDS):
-            assert check_field_is_none(data_field.DATASETS)
+            assert check_field_is_none(data_field, "DATASETS")
             datasets = {}
             for fold_id, fold_datasets_ids in data_field.FOLDS.items():
                 if fold_datasets_ids == (0,): continue

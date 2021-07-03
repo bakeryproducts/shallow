@@ -61,7 +61,10 @@ def fig_to_array(fig):
     data = data.reshape(fig.canvas.get_width_height()[::-1]+ (3,))
     return data
 
-def check_field_is_none(field):
+def check_field_is_none(base, name):
+    field = base.get(name, None)
+    if field is None: return True
+
     if isinstance(field, dict):
         for _, val in field.items():
             if val != (0,) and val != '': return False 

@@ -126,7 +126,7 @@ class TBMetricCB(Callback):
     def before_fit(self): self.cfg = self.L.kwargs['cfg']
 
     def parse_metrics(self, metric_collection, training=True):
-        mode = 'train_' if training else 'valid_'
+        mode = ''#'train_' if training else 'valid_'
         if metric_collection is None : return
         for category, metrics in metric_collection.items():
             for metric_name in metrics:

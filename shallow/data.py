@@ -158,7 +158,8 @@ def extend_dataset(ds, data_field, extend_factories):
         field_val = data_field.get(k, None) 
         if field_val:
             args = {}
-            if isinstance(field_val, dict): args.update(field_val)
+            try: args.update(field_val)
+            except:pass
             ds = factory(ds, **args)
     return ds
 
@@ -190,6 +191,7 @@ def apply_transforms_datasets(datasets, transforms):
 
 def count_folds(cfg):
     n = 0
-    for fid, dataset_idxs in cfg.DATA.TRAIN.FOLDS.items():
-        if dataset_idxs != (0,): n+=1
+    if 'FOLDS' in cfg.DATA:
+        for fid, dataset_idxs in cfg.DATA.TRAIN.FOLDS.items():
+            if dataset_idxs != (0,): n+=1
     return n
