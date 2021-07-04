@@ -1,173 +1,119 @@
-import os
-from pathlib import Path
+from typing import Optional, Dict, List, Any, Tuple, Union
+from dataclasses import dataclass, field, MISSING
 
-from yacs.config import CfgNode as CN
-
-'''
-yacs configurator : https://github.com/rbgirshick/yacs
-
-This file is kinda template which joins with actual .yaml config (src/configs/unet.yaml)
-In this file all values are intentionally WRONG, because one should init cfg by hand in code:
-
-    from config import cfg, cfg_init
-    cfg_init('unet.yaml')
-
-, which will create a singleton object cfg to use throughout all process functions
+import hydra
+from hydra.core.config_store import ConfigStore
+from omegaconf import OmegaConf
+from loguru import logger
 
 
-All params is of specific types, i.e. you cant use .yaml like that:
-    unet.yaml:
-        TRAIN.BATCH_SIZE = 32.
-    config.py:
-        TRAIN.BATCH_SIZE = 16
+@dataclass
+class _BaseTransformers: AUG: str = ''
+
+@dataclass
+class Transformers:
+    """common parameters for transform pipelines"""
+
+    TRAIN: _BaseTransformers = _BaseTransformers(AUG='train')
+    VALID: _BaseTransformers = _BaseTransformers(AUG='valid')
+    TEST: _BaseTransformers = _BaseTransformers(AUG='test')
+
+    MEAN: List[float] = field(default_factory=lambda: [0,0,0])
+    STD: List[float] =  field(default_factory=lambda: [1,1,1])
+
+    CROP: List[int] = field(default_factory=lambda: [128, 128])
+    CROP_VAL: List[int] = field(default_factory=lambda: [256, 256])
+    RESIZE: List[int] = field(default_factory=lambda: [128, 128])
+
+    WORKERS: int = 1  
 
 
-Some of paramteres like WORLD_SIZE should not be inited by hand in .yaml file
-Consider them technical information
+@dataclass
+class _BaseData:
+    DATASETS: List[str] = field(default_factory=lambda: [])
+    FOLDS: Dict[str, Any] = field(default_factory=lambda: dict())
+    GPU_PRELOAD: bool = False
+    PRELOAD: bool = False
+    MULTIPLY: Dict[str, Any] = field(default_factory=lambda: dict(rate=0))
 
-'''
+@dataclass
+class Data:
+    TRAIN: _BaseData = _BaseData()
+    VALID: _BaseData = _BaseData()
+    TEST : _BaseData = _BaseData()
 
+@dataclass
+class LoggerConfig:
+    # TODO
+    pass
 
-_C = CN()
-_C.OUTPUTS = ''
-_C.INPUTS = ''
+@dataclass
+class Parallel:
+    DDP: bool = False
+    LOCAL_RANK: int = -1
+    WORLD_SIZE: int = 0
+    IS_MASTER: bool = False
 
-_C.DATA = CN()
-
-_C.DATA.TRAIN = CN() 
-_C.DATA.TRAIN.DATASETS = (0,)
-_C.DATA.TRAIN.FOLDS = CN()
-_C.DATA.TRAIN.FOLDS.F0 = (0,)
-_C.DATA.TRAIN.FOLDS.F1 = (0,)
-_C.DATA.TRAIN.FOLDS.F2 = (0,)
-_C.DATA.TRAIN.FOLDS.F3 = (0,)
-_C.DATA.TRAIN.FOLDS.F4 = (0,)
-_C.DATA.TRAIN.GPU_PRELOAD = False
-_C.DATA.TRAIN.PRELOAD = False
-_C.DATA.TRAIN.CACHE = False
-_C.DATA.TRAIN.MULTIPLY = CN()
-_C.DATA.TRAIN.MULTIPLY.rate = 0
-
-_C.DATA.VALID = CN()
-_C.DATA.VALID.DATASETS = (0,)
-_C.DATA.VALID.FOLDS = CN()
-_C.DATA.VALID.FOLDS.F0 = (0,)
-_C.DATA.VALID.FOLDS.F1 = (0,)
-_C.DATA.VALID.FOLDS.F2 = (0,)
-_C.DATA.VALID.FOLDS.F3 = (0,)
-_C.DATA.VALID.FOLDS.F4 = (0,)
-_C.DATA.VALID.PRELOAD = False
-_C.DATA.VALID.GPU_PRELOAD = False
-_C.DATA.VALID.CACHE = False
-_C.DATA.VALID.MULTIPLY = CN()
-_C.DATA.VALID.MULTIPLY.rate = 0
-
-_C.DATA.VALID2 = CN()
-_C.DATA.VALID2.DATASETS = (0,)
-_C.DATA.VALID2.PRELOAD = False
-_C.DATA.VALID2.GPU_PRELOAD = False
-_C.DATA.VALID2.CACHE = False
-_C.DATA.VALID2.MULTIPLY = CN()
-_C.DATA.VALID2.MULTIPLY.rate = 0
-
-_C.DATA.SSL = CN()
-_C.DATA.SSL.DATASETS = (0,)
-_C.DATA.SSL.PRELOAD = False
-_C.DATA.SSL.GPU_PRELOAD = False
-_C.DATA.SSL.CACHE = False
-_C.DATA.SSL.MULTIPLY = CN()
-_C.DATA.SSL.MULTIPLY.rate = 0
-
-_C.DATA.TEST = CN()
-_C.DATA.TEST.DATASETS = (0,)
-_C.DATA.TEST.PRELOAD = False
-_C.DATA.TEST.GPU_PRELOAD = False
-_C.DATA.TEST.CACHE = False
-_C.DATA.TEST.MULTIPLY = 1
-
-_C.TRANSFORMERS = CN()
-
-_C.TRANSFORMERS.MEAN = (0,)
-_C.TRANSFORMERS.STD = (0,)
-
-_C.TRANSFORMERS.TRAIN = CN()
-_C.TRANSFORMERS.TRAIN.AUG=''
-
-_C.TRANSFORMERS.VALID = CN()
-_C.TRANSFORMERS.VALID.AUG=''
-
-_C.TRANSFORMERS.VALID2 = CN()
-_C.TRANSFORMERS.VALID2.AUG=''
-
-_C.TRANSFORMERS.SSL = CN()
-_C.TRANSFORMERS.SSL.AUG=''
-
-_C.TRANSFORMERS.TEST = CN()
-_C.TRANSFORMERS.TEST.AUG=''
-
-_C.TRANSFORMERS.CROP = (0,)
-_C.TRANSFORMERS.CROP_VAL = (0,)
-_C.TRANSFORMERS.RESIZE = (0,)
+@dataclass
+class Hydra_Opt:
+    # TODO: how?
+    # sweep dir
+    # mutlirun dir
+    run: Dict[str, Any] = field(default_factory=lambda: dict(dir='./output/${now:%m-%d}/${now:%H-%M-%S}'))
 
 
-_C.TRAIN = CN()
-_C.TRAIN.MODEL = ''
-_C.TRAIN.DOWNSCALE = 0
-_C.TRAIN.NUM_FOLDS = 0
-_C.TRAIN.FOLD_ID = ''
-_C.TRAIN.LRS = (0,)
-_C.TRAIN.SELECTIVE_BP = 1.
-_C.TRAIN.HARD_MULT = 0
-_C.TRAIN.EMA = 0.
-_C.TRAIN.WEIGHTS = ''
-_C.TRAIN.INIT_MODEL = ''
-_C.TRAIN.INIT_ENCODER = CN()
-_C.TRAIN.INIT_ENCODER.F0 = '' 
-_C.TRAIN.INIT_ENCODER.F1 = '' 
-_C.TRAIN.INIT_ENCODER.F2 = '' 
-_C.TRAIN.INIT_ENCODER.F3 = '' 
-_C.TRAIN.INIT_ENCODER.F4 = '' 
-_C.TRAIN.FREEZE_ENCODER = 0.
-_C.TRAIN.AMP= False
-_C.TRAIN.TORCHSCRIPT = False
-_C.TRAIN.GPUS = (0,)
-_C.TRAIN.NUM_WORKERS = 0
+@dataclass
+class Train:
+    MODEL: str = ''
+    LRS: List[float] = field(default_factory=lambda: [])
+    EMA: float = 0.
+    AMP: bool = False
+    GPUS: List[float] = field(default_factory=lambda: [0,])
+    NUM_WORKERS: int = 1
+    EPOCH_COUNT: int = 0
+    BATCH_SIZE: int = 0
+    DYNAMIC_SAMPLER: bool = False
+    NUM_FOLDS: int = 0
+    SAVE_STEP: float = 1.
+    SCALAR_STEP: int = 1
+    TB_STEP: int = 1
+    INIT_MODEL: str = ''
+    INIT_ENCODER: str = '' 
 
-_C.TRAIN.SAVE_STEP = 0.
-_C.TRAIN.SCALAR_STEP = 0
-_C.TRAIN.TB_STEP = 0
+@dataclass
+class Valid:
+    STEP: int = '${TRAIN.TB_STEP}'
+    BATCH_SIZE: int = '${TRAIN.BATCH_SIZE}'
 
-_C.TRAIN.BATCH_SIZE = 0
-_C.TRAIN.EPOCH_COUNT = 0
+def _generate_node(group, name, node_class, **kwargs):
+    return dict(group=group, name=name, node=node_class, **kwargs)
 
-_C.VALID = CN()
-_C.VALID.STEP = 0
-_C.VALID.NUM_WORKERS = 0
-_C.VALID.BATCH_SIZE = 0
+def example_generate_default_nodes():
+    nodes = [
+        _generate_node(group='TRANSFORMERS', name="_transformers", node_class=Transformers),
+        _generate_node(group='DATA', name="_data", node_class=Data),
+        _generate_node(group='PARALLEL', name="_parallel", node_class=Parallel),
+        _generate_node(group='TRAIN', name="_train", node_class=Train),
+        _generate_node(group='VALID', name="_valid", node_class=Valid),
+    ]
+    return nodes
 
-_C.VALID2 = CN()
-_C.VALID2.STEP = 0
-_C.VALID2.NUM_WORKERS = 0
-_C.VALID2.BATCH_SIZE = 0
+def cfg_init(get_nodes_fn, **kwargs):
+    #node = dict(group=GROUP, name=NAME, node=NODE)
+    nodes = get_nodes_fn(**kwargs)
+    cs = ConfigStore.instance()
+    for node in nodes:
+        cs.store(**node)
 
-_C.SSL = CN()
-_C.SSL.STEP = 0
-_C.SSL.NUM_WORKERS = 0
-_C.SSL.BATCH_SIZE = 0
 
-_C.TEST = CN()
-_C.TEST.NUM_WORKERS = 0
-_C.TEST.BATCH_SIZE = 0
+@hydra.main(config_path="configs", config_name="base")
+def main(cfg) -> None:
+    # Test cfg run
+    print(OmegaConf.to_yaml(cfg, resolve=True))
+    return cfg
 
-_C.PARALLEL = CN()
-_C.PARALLEL.DDP = False
-_C.PARALLEL.LOCAL_RANK = -1
-_C.PARALLEL.WORLD_SIZE = 0
-_C.PARALLEL.IS_MASTER = False
 
-cfg = _C
-        
-def cfg_init(path, freeze=True):
-    cfg.merge_from_file(path)
-    if freeze: cfg.freeze()
-        
+if __name__ == '__main__':
+    cfg_init()
+    main()
+
