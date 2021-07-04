@@ -63,12 +63,13 @@ def fig_to_array(fig):
 
 def check_field_is_none(base, name):
     field = base.get(name, None)
-    if field is None: return True
+    if not field: return True
 
     if isinstance(field, dict):
         for _, val in field.items():
-            if val != (0,) and val != '': return False 
+            if val == (0,) or val == '': return True 
     elif isinstance(field, list):
-        if field != (0,) and val != '': return False 
-    return True
+        if field == (0,) and val == '': return True 
+
+    return False
 

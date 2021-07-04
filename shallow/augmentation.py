@@ -59,7 +59,10 @@ class AugmentatorBase:
         self.std = self.cfg.STD 
         self.az = partial(augmentations_zoo, augmentor=self)
     
-    def get_aug(self, kind): return getattr(self, f'aug_{kind}', None)()
+    def get_aug(self, kind): 
+        attr = getattr(self, f'aug_{kind}', None)
+        assert attr is not None, (kind)
+        return  attr()
 
 
 
