@@ -191,7 +191,7 @@ def apply_transforms_datasets(datasets, transforms):
 
 def count_folds(cfg):
     n = 0
-    if 'FOLDS' in cfg.DATA:
-        for fid, dataset_idxs in cfg.DATA.TRAIN.FOLDS.items():
+    if 'FOLDS' in cfg:
+        for fid, dataset_idxs in cfg.FOLDS.items():
             if dataset_idxs != (0,): n+=1
     return n
