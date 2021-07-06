@@ -254,13 +254,13 @@ class CheckpointCB(Callback):
         utils.file_op.store_attr(self, locals())
         self.pct_counter = None if isinstance(self.save_step, int) else self.save_step
         
-    def do_saving(self, val='', save_ema=False):
-        m = self.L.model_ema if save_ema else self.L.model
+    def _save_dict_example(self, **kwargs):
+        m = self.L.model_ema if kwargs.get('save_ema') else self.L.model
         name = m.name if hasattr(m, 'name') else None
         model_state_dict =  utils.nn.get_state_dict(m) 
         amp_scaler = self.L.amp_scaler if hasattr(self.L, 'amp_scaler') else None
         scaler_state = amp_scaler.state_dict() if amp_scaler is not None else None
-        torch.save({
+        sd = {
                 'epoch': self.L.n_epoch,
                 'loss': self.L.loss,
                 'lr': self.L.lr,
@@ -268,7 +268,14 @@ class CheckpointCB(Callback):
                 'optim_state': self.L.opt.state_dict(), 
                 'scaler_state': scaler_state,
                 'model_name': name, 
-            }, str(self.save_path / f'e{self.L.n_epoch}_t{self.L.total_epochs}_{val}.pth'))
+             }
+        return sd
+
+    def _save_dict(self, **kwargs):
+        raise NotImplemented
+
+    def do_saving(self, val='', **kwargs):
+        torch.save(self._save_dict(**kwargs), str(self.save_path / f'e{self.L.n_epoch}_t{self.L.total_epochs}_{val}.pth'))
 
     def after_epoch(self):
         save = False

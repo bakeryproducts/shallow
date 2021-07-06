@@ -11,33 +11,27 @@ from shallow.utils.common import check_field_is_none
 
 def model_select_example(model_id):
     MODELS = {
-            'unet-regnety_016-scse': partial(smp.Unet, encoder_name='timm-regnety_016', decoder_attention_type='scse'),
-            'unet-regnetx_032-scse': partial(smp.Unet, encoder_name='timm-regnetx_032', decoder_attention_type='scse')
+            'timm-unet-regnety_016-scse': partial(SomeUnet, encoder_name='timm-regnety_016', decoder_attention_type='scse'),
+            'timm-unet-regnetx_032-scse': partial(SomeUnet, encoder_name='timm-regnetx_032', decoder_attention_type='scse')
             }
     model = MODELS[model_id]
     return model
 
-def build_model(cfg, mod_select, MODEL=None):
-    if MODEL is None : MODEL = cfg.TRAIN.MODEL
-    model = mod_select(MODEL)()
-    if cfg.TRAIN.INIT_MODEL: 
-        logger.log('DEBUG', f'Init model: {cfg.TRAIN.INIT_MODEL}') 
-        load_model_state(model, cfg.TRAIN.INIT_MODEL)
-
-    elif not check_field_is_none(cfg.TRAIN, "INIT_ENCODER"):
-        if cfg.TRAIN.FOLD_ID == '': enc_weights_name = cfg.TRAIN.INIT_ENCODER[0]
-        else: enc_weights_name = cfg.TRAIN.INIT_ENCODER[cfg.TRAIN.FOLD_ID]
-        _init_encoder(model, enc_weights_name)
-    else: pass
-
+def build_model(model_name, model_select, model_weights=None, weight_init_fn=load_model_state):
+    """
+        TODO: doc
+    """
+    model = model_select(model_name)()
+    if model_weights: 
+        logger.log('DEBUG', f'Initializing weights from: {model_weights}') 
+        weight_init_fn(model, model_weights)
     model = model.cuda()
     model.train()
-    if cfg.TRAIN.TORCHSCRIPT: model = torch.jit.script(model)
+    model.name = model_name
     return model 
 
 def get_optim(cfg, model):
     lr = 1e-4 if not cfg.PARALLEL.DDP else scale_lr(base_lr, cfg) 
-    
     opt = optim.AdamW
     opt_kwargs = {'amsgrad':True, 'weight_decay':1e-3}
     optimizer = opt(tencent_trick(model), lr=lr, **opt_kwargs)

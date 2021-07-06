@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 def unwrap_model(model): return model.module if hasattr(model, 'module') else model
 def get_state_dict(model, unwrap_fn=unwrap_model): return unwrap_fn(model).state_dict()
+def get_model_name(model): return unwrap_model(model).name if hasattr(unwrap_model(model), 'name') else None
 
 def scale_lr(lr, cfg): return lr * float(cfg.TRAIN.BATCH_SIZE * cfg.PARALLEL.WORLD_SIZE)/256.
 
@@ -22,9 +23,16 @@ def load_model(cfg, model_folder_path, eval_mode=True):
 def _load_state(path, key):
     path = Path(path)
     if path.suffix != '.pth': path = get_last_model_name(path)
-    state = torch.load(path, map_location='cpu').get(key, None)
+    state = torch.load(path, map_location='cpu')
+    if isinstance(key, list):
+        # multilevel dict : {'state':{'enc':s1, 'dec':s2, ...}} key = ['state', 'dec']
+        for k in key:
+            state = state.get(k, None)
+    else:
+        state = state.get(key, None)
     return state
 
+def load_state(m, path, k): m.load_state_dict(_load_state(path, k))
 def load_model_state(model, path): model.load_state_dict(_load_state(path, 'model_state'))
 def load_optim_state(optim, path): optim.load_state_dict(_load_state(path, 'optim_state'))
 def load_scaler_state(scaler, path): scaler.load_state_dict(_load_state(path, 'scaler_state'))
