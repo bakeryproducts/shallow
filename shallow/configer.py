@@ -85,6 +85,10 @@ class Valid:
     STEP: int = '${TRAIN.TB_STEP}'
     BATCH_SIZE: int = '${TRAIN.BATCH_SIZE}'
 
+@dataclass
+class Test:
+    BATCH_SIZE: int = '${TRAIN.BATCH_SIZE}'
+
 def _generate_node(group, name, node_class, **kwargs):
     return dict(group=group, name=name, node=node_class, **kwargs)
 
@@ -95,6 +99,7 @@ def example_generate_default_nodes():
         _generate_node(group='PARALLEL', name="_parallel", node_class=Parallel),
         _generate_node(group='TRAIN', name="_train", node_class=Train),
         _generate_node(group='VALID', name="_valid", node_class=Valid),
+        _generate_node(group='TEST', name="_test", node_class=Test),
     ]
     return nodes
 
