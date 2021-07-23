@@ -250,6 +250,7 @@ class TrainCB(Callback):
 
 
 class CheckpointCB(Callback):
+    # TODO simplier, **kwargs into save_dict, do we really need to do that
     def __init__(self, save_path, ema=False, save_step=None):
         utils.file_op.store_attr(self, locals())
         self.pct_counter = None if isinstance(self.save_step, int) else self.save_step
