@@ -53,7 +53,7 @@ class ModelUnwrap(nn.Module):
         self.model = model
         self.read_pred = read_pred
         
-    def forward(self, x): return self.read_pred(self.model(x))
+    def forward(self, *args, **kwargs): return self.read_pred(self.model(*args, **kwargs))
 
 class FoldModel(nn.Module):
     def __init__(self, models, read_pred=lambda x:x, write_pred=lambda x:x):
@@ -118,7 +118,7 @@ def parse_model_path(p):
 def get_last_model_name(src, after_epoch=False):
     # assumes that model name is of type e500_blabla.pth, sorted by epoch #500
     model_names = list(Path(src).glob('*.pth'))
-    assert model_names != [], 'No valid models at init path'
+    assert model_names != [], f'No valid models at init path {src}'
 
     res = []
     for i, m in enumerate(model_names):
