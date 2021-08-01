@@ -12,9 +12,9 @@ def in_docker(): return os.path.exists('/.dockerenv')
 def st(t): return t.shape, t.dtype, t.min(), t.max(), t.mean(), t.std()
 def to_cuda(l): return [i.cuda() for i in l]
 def upscale(tensor, size): return torch.nn.functional.interpolate(tensor, size=size)
-def denorm(images, mean=(0.46454108, 0.43718538, 0.39618185), std=(0.23577851, 0.23005974, 0.23109385)):
-    mean = torch.tensor(mean).view((1,3,1,1))
-    std = torch.tensor(std).view((1,3,1,1))
+def denorm(images, mean=(0.46454108, 0.43718538, 0.39618185), std=(0.23577851, 0.23005974, 0.23109385), num_ch=3):
+    mean = torch.tensor(mean).view((1,num_ch,1,1))
+    std = torch.tensor(std).view((1,num_ch,1,1))
     images = images * std + mean
     return images
 
