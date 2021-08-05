@@ -71,6 +71,7 @@ class TimerCB(Callback):
         if self.L.model.training == self.mode_train:
             self.epoch_timer.stop()
             bs, es = self.L.dl.batch_size, len(self.L.dl)
+            if bs is None: bs = -1
             self.log_info(f'\t[E {self.L.n_epoch}/{self.L.total_epochs}]: {self.epoch_timer.last: .3f} s,'+
                      f'{bs * es/self.epoch_timer.last: .3f} im/s; ')
                      #f'batch {self.batch_timer.avg: .3f} s'   )    
@@ -151,13 +152,15 @@ class TBMetricCB(Callback):
         #self.log_debug('tb metric after validation')
         self.parse_metrics(self.validation_metrics, training=False)
         self.save_by_score(self.track_cb.get_score(ema=False), False)
+        ema_val_score =  self.track_cb.get_score(ema=True)
+        self.save_by_score(ema_val_score, True)
 
-    @utils.call.on_validation
-    def before_epoch(self):
-        if self.cfg.TRAIN.EMA > 0.:
-            ema_val_score =  self.track_cb.get_score(ema=True)
-            self.parse_metrics(self.validation_metrics)
-            self.save_by_score(ema_val_score, True)
+    #@utils.call.on_validation
+    #def before_epoch(self):
+    #    if self.cfg.TRAIN.EMA > 0.:
+    #        ema_val_score =  self.track_cb.get_score(ema=True)
+    #        self.parse_metrics(self.validation_metrics)
+    #        self.save_by_score(ema_val_score, True)
             
     def after_epoch(self):
         if self.L.model.training: self.after_epoch_train()

@@ -78,10 +78,13 @@ class TransformDataset:
     
 class MultiplyDataset:
     def __init__(self, dataset, rate):
-        _dataset = ConcatDataset([dataset])
-        for i in range(rate-1):
-            _dataset += ConcatDataset([dataset])
-        self.dataset = _dataset
+        if rate > 1:
+            _dataset = ConcatDataset([dataset])
+            for i in range(rate-1):
+                _dataset += ConcatDataset([dataset])
+            self.dataset = _dataset
+        else:
+            self.dataset = dataset
         
     def __getitem__(self, idx):
         return self.dataset.__getitem__(idx)
