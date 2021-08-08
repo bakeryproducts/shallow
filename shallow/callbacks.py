@@ -116,13 +116,11 @@ class FrozenEncoderCB(Callback):
 
 
 class TBMetricCB(Callback):
-    def __init__(self, writer, track_cb, save_score_threshold=.9, train_metrics=None, validation_metrics=None, logger=None):
+    def __init__(self, writer, track_cb, train_metrics=None, validation_metrics=None, logger=None):
         ''' train_metrics = {'losses':['train_loss', 'val_loss']}
             val_metrics = {'metrics':['localization_f1']}
         '''
         utils.file_op.store_attr(self, locals())
-        self.max_score = -1
-        self.save_score_threshold = save_score_threshold
 
     def before_fit(self): self.cfg = self.L.kwargs['cfg']
 
@@ -136,14 +134,6 @@ class TBMetricCB(Callback):
                     self.log_debug(f"{category + '/' + metric_name, metric_value, self.L.n_epoch}")
                     self.writer.add_scalar(category + '/' + mode  + metric_name, metric_value, self.L.n_epoch)
 
-    def save_by_score(self, score, save_ema=False):
-        if score > self.max_score:
-            self.max_score = score
-            if score > self.save_score_threshold:
-                chpt_cb = utils.call.get_cb_by_instance(self.L.cbs, CheckpointCB)
-                suffix = 'ema' if save_ema else 'val'
-                if chpt_cb is not None: chpt_cb.do_saving(f'cmax_{suffix}_{round(score, 4)}', save_ema=save_ema)
-
     def after_epoch_train(self):
         #self.log_debug('tb metric after train epoch')
         self.parse_metrics(self.train_metrics, training=True)
@@ -151,17 +141,7 @@ class TBMetricCB(Callback):
     def after_epoch_valid(self):
         #self.log_debug('tb metric after validation')
         self.parse_metrics(self.validation_metrics, training=False)
-        self.save_by_score(self.track_cb.get_score(ema=False), False)
-        ema_val_score =  self.track_cb.get_score(ema=True)
-        self.save_by_score(ema_val_score, True)
 
-    #@utils.call.on_validation
-    #def before_epoch(self):
-    #    if self.cfg.TRAIN.EMA > 0.:
-    #        ema_val_score =  self.track_cb.get_score(ema=True)
-    #        self.parse_metrics(self.validation_metrics)
-    #        self.save_by_score(ema_val_score, True)
-            
     def after_epoch(self):
         if self.L.model.training: self.after_epoch_train()
         else: self.after_epoch_valid()
