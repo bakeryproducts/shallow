@@ -1,14 +1,14 @@
-from typing import Optional, Dict, List, Any, Tuple, Union
-from dataclasses import dataclass, field, MISSING
+from typing import Dict, List, Any
+from dataclasses import dataclass, field
 
 import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
-from loguru import logger
 
 
 @dataclass
 class _BaseTransformers: AUG: str = ''
+
 
 @dataclass
 class Transformers:
@@ -25,7 +25,7 @@ class Transformers:
     CROP_VAL: List[int] = field(default_factory=lambda: [256, 256])
     RESIZE: List[int] = field(default_factory=lambda: [128, 128])
 
-    WORKERS: int = 1  
+    WORKERS: int = 1
 
 
 @dataclass
@@ -36,16 +36,19 @@ class _BaseData:
     PRELOAD: bool = False
     MULTIPLY: Dict[str, Any] = field(default_factory=lambda: dict(rate=0))
 
+
 @dataclass
 class Data:
     TRAIN: _BaseData = _BaseData()
     VALID: _BaseData = _BaseData()
     TEST : _BaseData = _BaseData()
 
+
 @dataclass
 class LoggerConfig:
     # TODO
     pass
+
 
 @dataclass
 class Parallel:
@@ -53,6 +56,7 @@ class Parallel:
     LOCAL_RANK: int = -1
     WORLD_SIZE: int = 0
     IS_MASTER: bool = False
+
 
 @dataclass
 class Hydra_Opt:
@@ -72,36 +76,54 @@ class Train:
     NUM_WORKERS: int = 1
     EPOCH_COUNT: int = 0
     BATCH_SIZE: int = 0
-    DYNAMIC_SAMPLER: bool = False
     NUM_FOLDS: int = 0
+    FOLD_ID: str = ''
     SAVE_STEP: float = 1.
     SCALAR_STEP: int = 1
     TB_STEP: int = 1
     INIT_MODEL: str = ''
-    INIT_ENCODER: str = '' 
+    INIT_ENCODER: str = ''
+    EARLY_EXIT: int = 10
+    SEED: int = 0
+
 
 @dataclass
 class Valid:
     STEP: int = '${TRAIN.TB_STEP}'
     BATCH_SIZE: int = '${TRAIN.BATCH_SIZE}'
 
+
 @dataclass
 class Test:
     BATCH_SIZE: int = '${TRAIN.BATCH_SIZE}'
 
+
+@dataclass
+class Features:
+    MIXUP: dict = {}
+    CLAMP: float = 1000.
+    TENSOR_DATASET: bool = False
+    BATCH_ACCUMULATION_STEP: int = 1
+    GRAD_CLIP: float = 10.0
+    FREEZE_ENCODER: float = .0
+
+
 def _generate_node(group, name, node_class, **kwargs):
     return dict(group=group, name=name, node=node_class, **kwargs)
+
 
 def example_generate_default_nodes():
     nodes = [
         _generate_node(group='TRANSFORMERS', name="_transformers", node_class=Transformers),
         _generate_node(group='DATA', name="_data", node_class=Data),
+        _generate_node(group='FEATURES', name="_features", node_class=Features),
         _generate_node(group='PARALLEL', name="_parallel", node_class=Parallel),
         _generate_node(group='TRAIN', name="_train", node_class=Train),
         _generate_node(group='VALID', name="_valid", node_class=Valid),
         _generate_node(group='TEST', name="_test", node_class=Test),
     ]
     return nodes
+
 
 def cfg_init(get_nodes_fn, **kwargs):
     #node = dict(group=GROUP, name=NAME, node=NODE)
@@ -121,4 +143,3 @@ def main(cfg) -> None:
 if __name__ == '__main__':
     cfg_init()
     main()
-

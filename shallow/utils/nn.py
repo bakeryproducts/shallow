@@ -1,24 +1,14 @@
 from pathlib import Path
-from collections import OrderedDict
 
 import torch
 import torch.nn as nn
-from torch import optim
-from torch.nn import init
-import torch.nn.functional as F
 
 
 def unwrap_model(model): return model.module if hasattr(model, 'module') else model
 def get_state_dict(model, unwrap_fn=unwrap_model): return unwrap_fn(model).state_dict()
 def get_model_name(model): return unwrap_model(model).name if hasattr(unwrap_model(model), 'name') else None
+def scale_lr(lr, cfg): return lr * float(cfg.TRAIN.BATCH_SIZE * cfg.PARALLEL.WORLD_SIZE) / 256.
 
-def scale_lr(lr, cfg): return lr * float(cfg.TRAIN.BATCH_SIZE * cfg.PARALLEL.WORLD_SIZE)/256.
-
-def load_model(cfg, model_folder_path, eval_mode=True):
-    model = model_select(cfg.TRAIN.MODEL)
-    model = _load_model_state(model, model_folder_path)
-    if eval_mode: model.eval()
-    return model
 
 def _load_state(path, key):
     path = Path(path)
@@ -32,28 +22,30 @@ def _load_state(path, key):
         state = state.get(key, None)
     return state
 
+
 def load_state(m, path, k): m.load_state_dict(_load_state(path, k))
 def load_model_state(model, path): model.load_state_dict(_load_state(path, 'model_state'))
 def load_optim_state(optim, path): optim.load_state_dict(_load_state(path, 'optim_state'))
 def load_scaler_state(scaler, path): scaler.load_state_dict(_load_state(path, 'scaler_state'))
-
 def unwrap_model(model): return model.module if hasattr(model, 'module') else model
-def get_state_dict(model, unwrap_fn=unwrap_model): return unwrap_fn(model).state_dict()
+
 
 def _init_encoder(model, src):
     enc_state = torch.load(src)['model_state']
-    if "head.fc.weight" not in enc_state: 
+    if "head.fc.weight" not in enc_state:
         enc_state["head.fc.weight"] = None
         enc_state["head.fc.bias"] = None
     model.encoder.load_state_dict(enc_state)
+
 
 class ModelUnwrap(nn.Module):
     def __init__(self, model, read_pred):
         super(ModelUnwrap, self).__init__()
         self.model = model
         self.read_pred = read_pred
-        
+
     def forward(self, *args, **kwargs): return self.read_pred(self.model(*args, **kwargs))
+
 
 class FoldModel(nn.Module):
     def __init__(self, models, read_pred=lambda x:x, write_pred=lambda x:x):
@@ -61,10 +53,24 @@ class FoldModel(nn.Module):
         self.ms = models
         self.read_pred = read_pred
         self.write_pred = write_pred
-        
+
     def forward(self, x):
         res = torch.stack([self.read_pred(m(x)) for m in self.ms])
-        return self.write_pred(res.mean(0))
+        preds = []
+        for m in self.ms:
+            pred = m(x)
+            preds.append(pred)
+
+        res = {}
+        for k in preds[0]:
+            p = [p[k] for p in preds]
+            p = torch.stack([p])
+            p = p.mean(0)
+            res[k] = p
+
+        #res = torch.stack([self.read_pred(m(x)) for m in self.ms])
+        return res
+
 
 def configure_optim_groups(model):
     """
@@ -98,9 +104,10 @@ def configure_optim_groups(model):
     assert len(inter_params) == 0, "parameters %s made it into both decay/no_decay sets!" % (str(inter_params), )
     assert len(param_dict.keys() - union_params) == 0, "parameters %s were not separated into either decay/no_decay set!" \
                                                 % (str(param_dict.keys() - union_params), )
-
-    return [ {"params": [param_dict[pn] for pn in sorted(list(decay))]},
-        {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0} ]
+    return [
+        {"params": [param_dict[pn] for pn in sorted(list(decay))]},
+        {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0}
+    ]
 
 
 def replace_relu_to_silu(model):
@@ -110,10 +117,12 @@ def replace_relu_to_silu(model):
         else:
             replace_relu_to_silu(child)
 
+
 def parse_model_path(p):
     name = str(p.name)
     epoch = name.split('_')[0]
     return int(epoch[1:])
+
 
 def get_last_model_name(src, after_epoch=False):
     # assumes that model name is of type e500_blabla.pth, sorted by epoch #500
@@ -131,18 +140,17 @@ def get_last_model_name(src, after_epoch=False):
 
 
 
-
-def avg_sq_ch_mean(model, input, output): 
+def avg_sq_ch_mean(model, input, output):
     "calculate average channel square mean of output activations"
     return torch.mean(output.mean(axis=[0,2,3])**2).item()
 
 
-def avg_ch_var(model, input, output): 
+def avg_ch_var(model, input, output):
     "calculate average channel variance of output activations"
-    return torch.mean(output.var(axis=[0,2,3])).item()\
+    return torch.mean(output.var(axis=[0,2,3])).item()
 
 
-def avg_ch_var_residual(model, input, output): 
+def avg_ch_var_residual(model, input, output):
     "calculate average channel variance of output activations"
     return torch.mean(output.var(axis=[0,2,3])).item()
 
@@ -189,19 +197,18 @@ class ActivationStatsHook:
             module.register_forward_hook(self._create_hook(hook_fn))
 
 
-def extract_spp_stats(model, 
+def extract_spp_stats(model,
                       hook_fn_locs,
-                      hook_fns, 
+                      hook_fns,
                       input_shape=[8, 3, 224, 224]):
-    """Extract average square channel mean and variance of activations during 
+    """Extract average square channel mean and variance of activations during
     forward pass to plot Signal Propogation Plots (SPP).
-    
+
     Paper: https://arxiv.org/abs/2101.08692
 
     Example Usage: https://gist.github.com/amaarora/6e56942fcb46e67ba203f3009b30d950
-    """ 
+    """
     x = torch.normal(0., 1., input_shape)
     hook = ActivationStatsHook(model, hook_fn_locs=hook_fn_locs, hook_fns=hook_fns)
     _ = model(x)
     return hook.stats
-    

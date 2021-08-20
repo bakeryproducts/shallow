@@ -6,7 +6,8 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data.dataset import ConcatDataset as TorchConcatDataset
 
-from shallow.data import  *
+#from shallow.data import *
+from shallow import data, data_shard
 from shallow.utils.common import check_field_is_none
 
 
@@ -41,7 +42,8 @@ def init_datasets_example(cfg):
         "val_4": AuxDataset(DATA_DIR/'val4'),
 
     }
-    return  DATASETS
+    return DATASETS
+
 
 def build_transform_fact_example():
     #def train_trans_get(*args, **kwargs): return augs.get_aug(*args, **kwargs)
@@ -70,7 +72,7 @@ def create_datasets(cfg, all_datasets, dataset_types):
         if 'DATASETS' in data_field and not check_field_is_none(data_field, 'DATASETS'):
             assert check_field_is_none(data_field, "FOLDS")
             datasets = [all_datasets[ds] for ds in data_field.DATASETS]
-            ds = TorchConcatDataset(datasets) if len(datasets)>1 else datasets[0] 
+            ds = TorchConcatDataset(datasets) if len(datasets) > 1 else datasets[0]
             converted_datasets[dataset_type] = ds
 
         elif 'FOLDS' in data_field and not check_field_is_none(data_field, "FOLDS"):
@@ -79,7 +81,7 @@ def create_datasets(cfg, all_datasets, dataset_types):
             for fold_id, fold_datasets_ids in data_field.FOLDS.items():
                 if fold_datasets_ids == (0,): continue
                 fold_datasets = [all_datasets[fold_dataset_id] for fold_dataset_id in fold_datasets_ids]
-                ds = TorchConcatDataset(fold_datasets) if len(fold_datasets)>1 else fold_datasets[0] 
+                ds = TorchConcatDataset(fold_datasets) if len(fold_datasets) > 1 else fold_datasets[0]
                 datasets[fold_id] = ds
 
             converted_datasets[dataset_type] = datasets
@@ -107,25 +109,32 @@ def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['
             preload_dataset = PreloadingDataset(MyDataset)
             augmented_dataset = TransformDataset(preload_dataset)
     """
+
     extend_factories = {
-             'PRELOAD':partial(PreloadingDataset, num_proc=num_proc, progress=tqdm),
-             'MULTIPLY':MultiplyDataset,
-             'CACHING':CachingDataset,
+        'PRELOAD':partial(data.PreloadingDataset, num_proc=num_proc, progress=tqdm),
+        'PRELOAD_SHARDED':partial(data_shard.ShardedPreloadingDataset,
+                                  num_proc=num_proc,
+                                  progress=tqdm,
+                                  seed=cfg.TRAIN.SEED,
+                                  rank=cfg.PARALLEL.LOCAL_RANK,
+                                  num_replicas=cfg.PARALLEL.WORLD_SIZE,
+                                  to_tensor=cfg.FEATURES.TENSOR_DATASET),
+        'MULTIPLY':data.MultiplyDataset,
+        'CACHING':data.CachingDataset,
     }
- 
-    # TODO create_datasets should take fold_id as an input 
+    # TODO create_datasets should take fold_id as an input
     datasets = create_datasets(cfg, predefined_datasets, dataset_types)
 
     if fold_id is not None:
         # fold mode, fold_id from cfg, F0, F1, ...
         assert isinstance(datasets['TRAIN'], dict) # fold mode, train->folds->{f0:[], f1:[], f2:[]}
-        datasets['TRAIN'] = datasets['TRAIN'][fold_id] 
-        datasets['VALID'] = datasets['VALID'][fold_id] 
+        datasets['TRAIN'] = datasets['TRAIN'][fold_id]
+        datasets['VALID'] = datasets['VALID'][fold_id]
 
-    if not ext_last: datasets = create_extensions(cfg, datasets, extend_factories)
-    transforms = create_transforms(cfg, transform_factory, dataset_types)
-    datasets = apply_transforms_datasets(datasets, transforms)
-    if ext_last: datasets = create_extensions(cfg, datasets, extend_factories)
+    if not ext_last: datasets = data.create_extensions(cfg, datasets, extend_factories)
+    transforms = data.create_transforms(cfg, transform_factory, dataset_types)
+    datasets = data.apply_transforms_datasets(datasets, transforms)
+    if ext_last: datasets = data.create_extensions(cfg, datasets, extend_factories)
     return datasets
 
 

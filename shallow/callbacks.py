@@ -83,27 +83,28 @@ class TimerCB(Callback):
             em = et.avg
             estd = ((et.p(self.perc) - em) + (em - et.p(1-self.perc))) / 2
             self.log_info(f'\tEpoch average time: {em: .3f} +- {estd: .3f} s')
-        
+
+
 class MemChLastCB(Callback):
     def __init__(self, batch_read=lambda x: x, logger=None, step=1):
         utils.file_op.store_attr(self, locals())
 
-    def before_fit(self): 
-        self.log_debug(f'USING MEM CHANNELS LAST CALLBACK')
+    def before_fit(self):
+        self.log_debug('USING MEM CHANNELS LAST CALLBACK')
         self.cfg = self.L.kwargs['cfg']
         self.L.model = self.L.model.to(memory_format=torch.channels_last)
         #if self.cfg.TRAIN.EMA > 0: self.L.model_ema = self.L.model_ema.to(memory_format=torch.channels_last)
 
     def before_batch(self):
         #self.L.batch = [i.to(memory_format=torch.channels_last) for i in self.batch_read(self.L.batch)]
-        self.L.batch['xb'].to(memory_format=torch.channels_last) 
+        self.L.batch['xb'].to(memory_format=torch.channels_last)
 
 
 class FrozenEncoderCB(Callback):
-    def __init__(self, logger=None): 
+    def __init__(self, logger=None):
         utils.file_op.store_attr(self, locals())
 
-    def before_fit(self): 
+    def before_fit(self):
         self.cfg = self.L.kwargs['cfg']
         self.freeze_enc = self.cfg.TRAIN.FREEZE_ENCODER > 0.
         if self.freeze_enc: utils.common.unwrap_model(self.L.model).encoder.requires_grad_(False)
@@ -126,13 +127,13 @@ class TBMetricCB(Callback):
 
     def parse_metrics(self, metric_collection, training=True):
         mode = ''#'train_' if training else 'valid_'
-        if metric_collection is None : return
+        if metric_collection is None: return
         for category, metrics in metric_collection.items():
             for metric_name in metrics:
                 metric_value = getattr(self.track_cb, metric_name, None)
-                if metric_value is not None: 
+                if metric_value is not None:
                     self.log_debug(f"{category + '/' + metric_name, metric_value, self.L.n_epoch}")
-                    self.writer.add_scalar(category + '/' + mode  + metric_name, metric_value, self.L.n_epoch)
+                    self.writer.add_scalar(category + '/' + mode + metric_name, metric_value, self.L.n_epoch)
 
     def after_epoch_train(self):
         #self.log_debug('tb metric after train epoch')
@@ -154,7 +155,7 @@ class TBPredictionsCB(Callback):
         self.num_images, self.wh = 5, (256, 256)
 
     def before_fit(self):
-        self.mean, self.std = self.L.kwargs['cfg'].TRANSFORMERS.MEAN, self.L.kwargs['cfg'].TRANSFORMERS.STD 
+        self.mean, self.std = self.L.kwargs['cfg'].TRANSFORMERS.MEAN, self.L.kwargs['cfg'].TRANSFORMERS.STD
 
     def process_batch(self):
         batch = self.batch_read(self.L.batch)
@@ -237,56 +238,55 @@ class CheckpointCB(Callback):
     def __init__(self, save_path, ema=False, save_step=None):
         utils.file_op.store_attr(self, locals())
         self.pct_counter = None if isinstance(self.save_step, int) else self.save_step
-        
+
     def _save_dict_example(self, **kwargs):
         m = self.L.model_ema if kwargs.get('save_ema') else self.L.model
         name = m.name if hasattr(m, 'name') else None
-        model_state_dict =  utils.nn.get_state_dict(m) 
+        model_state_dict = utils.nn.get_state_dict(m)
         amp_scaler = self.L.amp_scaler if hasattr(self.L, 'amp_scaler') else None
         scaler_state = amp_scaler.state_dict() if amp_scaler is not None else None
         sd = {
-                'epoch': self.L.n_epoch,
-                'loss': self.L.loss,
-                'lr': self.L.lr,
-                'model_state': model_state_dict,
-                'optim_state': self.L.opt.state_dict(), 
-                'scaler_state': scaler_state,
-                'model_name': name, 
-             }
+            'epoch': self.L.n_epoch,
+            'loss': self.L.loss,
+            'lr': self.L.lr,
+            'model_state': model_state_dict,
+            'optim_state': self.L.opt.state_dict(),
+            'scaler_state': scaler_state,
+            'model_name': name,
+        }
         return sd
 
-    def _save_dict(self, **kwargs):
-        raise NotImplemented
+    def _save_dict(self, **kwargs): raise NotImplementedError
 
     def do_saving(self, val='', **kwargs):
         torch.save(self._save_dict(**kwargs), str(self.save_path / f'e{self.L.n_epoch}_t{self.L.total_epochs}_{val}.pth'))
 
     def after_epoch(self):
         save = False
-        if self.L.n_epoch == self.L.total_epochs - 1: save=False
-        elif isinstance(self.save_step, int): save = self.save_step % self.L.n_epoch == 0 
+        if self.L.n_epoch == self.L.total_epochs - 1: save = False
+        elif isinstance(self.save_step, int): save = self.save_step % self.L.n_epoch == 0
         else:
             if self.L.np_epoch > self.pct_counter:
                 save = True
                 self.pct_counter += self.save_step
-        
+
         save_ema = self.L.kwargs['cfg'].TRAIN.EMA > 0.
         if save: self.do_saving('_after_epoch', save_ema=save_ema)
 
-            
+
 class HooksCB(Callback):
     def __init__(self, func, layers, perc_start=.5, step=1, logger=None):
-        utils.file_op.store_attr(self, locals()) 
+        utils.file_op.store_attr(self, locals())
         self.hooks = Hooks(self.layers, self.func)
         self.do_once = True
-    
+
     @utils.call.on_epoch_step
     def before_batch(self):
         if self.do_once and self.np_batch > self.perc_start:
             self.log_debug(f'Gathering activations at batch {self.np_batch}')
             self.do_once = False
             self.hooks.attach()
-    
+
     @utils.call.on_epoch_step
     def after_batch(self):
         if self.hooks.is_attached(): self.hooks.detach()
