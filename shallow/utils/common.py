@@ -5,11 +5,10 @@ import numpy as np
 from torchvision.transforms import ToPILImage
 
 
-def noop (x=None, *args, **kwargs): return x
+def noop(x=None, *args, **kwargs): return x
 def noops(self, x=None, *args, **kwargs): return x
 def tpi(i): return ToPILImage()(i)
 def in_docker(): return os.path.exists('/.dockerenv')
-def st(t): return t.shape, t.dtype, t.min(), t.max(), t.mean(), t.std()
 def to_cuda(l): return [i.cuda() for i in l]
 def upscale(tensor, size): return torch.nn.functional.interpolate(tensor, size=size)
 def denorm(images, mean=(0.46454108, 0.43718538, 0.39618185), std=(0.23577851, 0.23005974, 0.23109385), num_ch=3):
@@ -19,6 +18,14 @@ def denorm(images, mean=(0.46454108, 0.43718538, 0.39618185), std=(0.23577851, 0
     return images
 
 
+def st(t):
+    """
+        shape, dtype, min, max, mean, std
+    """
+
+    return t.shape, t.dtype, t.min(), t.max(), t.mean(), t.std()
+
+
 def set_cuda_devices(gpu_idx):
     if os.environ.get('CUDA_VISIBLE_DEVICES') is None:
         gpus = ','.join([str(g) for g in gpu_idx])
@@ -26,6 +33,7 @@ def set_cuda_devices(gpu_idx):
     else:
         print(f'WARNING, GPU OS AND CFG CONFLICT: ', cfg.TRAIN.GPUS, os.environ.get('CUDA_VISIBLE_DEVICES'))
         print('USING ', os.environ.get('CUDA_VISIBLE_DEVICES'))
+
 
 class TorchBuffer:
     # TODO convert to torch.Tensor extension

@@ -100,7 +100,6 @@ class Test:
 
 @dataclass
 class Features:
-    MIXUP: dict = {}
     CLAMP: float = 1000.
     TENSOR_DATASET: bool = False
     BATCH_ACCUMULATION_STEP: int = 1

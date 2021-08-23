@@ -50,19 +50,19 @@ def augmentations_zoo(key, augmentor, p=1):
 
 class AugmentatorBase:
     def __init__(self, cfg, compose):
-        self.cfg = cfg 
+        self.cfg = cfg
         self.resize_h, self.resize_w = self.cfg.RESIZE
         self.crop_h, self.crop_w = self.cfg.CROP
-        self.crop_val_h, self.crop_val_w = self.cfg.CROP_VAL if self.cfg.CROP_VAL is not (0,) else seld.cfg.CROP
+        self.crop_val_h, self.crop_val_w = self.cfg.CROP_VAL if self.cfg.CROP_VAL is not (0, ) else self.cfg.CROP
         self.compose = compose
-        self.mean = self.cfg.MEAN 
-        self.std = self.cfg.STD 
+        self.mean = self.cfg.MEAN
+        self.std = self.cfg.STD
         self.az = partial(augmentations_zoo, augmentor=self)
-    
-    def get_aug(self, kind): 
+
+    def get_aug(self, kind):
         attr = getattr(self, f'aug_{kind}', None)
         assert attr is not None, (kind)
-        return  attr()
+        return attr()
 
 
 

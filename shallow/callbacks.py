@@ -1,36 +1,41 @@
-import time
 from functools import partial
 
 import torch
-from torch.utils.tensorboard import SummaryWriter
 
 from shallow import utils, meters
 
 
 class CancelFitException(Exception): pass
 
-class Callback: 
-    _default='L'
-    logger=None
-    def log_debug(self, m): self.logger.log("DEBUG", m) if self.logger is not None else False
-    def log_info(self, m): self.logger.log("INFO", m) if self.logger is not None else False
-    def log_critical(self, m): self.logger.log("CRITICAL", m) if self.logger is not None else False
-    
+
+class Callback:
+    _default = 'L'
+    logger = None
+    def log_debug(self, *m): [self.logger.log("DEBUG", i) for i in m] if self.logger is not None else False
+    def log_info(self, *m): [self.logger.log("INFO", i) for i in m] if self.logger is not None else False
+    def log_critical(self, *m): [self.logger.log("CRITICAL", i) for i in m] if self.logger is not None else False
+
+
 class ParamSchedulerCB(Callback):
     def __init__(self, phase, pname, sched_func):
         self.pname, self.sched_func = pname, sched_func
         setattr(self, phase, self.set_param)
+
     def set_param(self): setattr(self.L, self.pname, self.sched_func(self.L.np_epoch))
-    
+
+
 def batch_transform_cuda(b):
     xb,yb = b
     return {'xb': xb.cuda(), 'yb': yb.cuda()}
 
+
 class SetupLearnerCB(Callback):
     def __init__(self, batch_transform=batch_transform_cuda): utils.file_op.store_attr(self, locals())
-    def before_fit(self): 
+
+    def before_fit(self):
         self.cfg = self.L.kwargs['cfg']
         self.L.model.cuda()
+
     def before_batch(self): self.L.batch = self.batch_transform(self.L.batch)
 
 
@@ -101,19 +106,21 @@ class MemChLastCB(Callback):
 
 
 class FrozenEncoderCB(Callback):
-    def __init__(self, logger=None):
+    def __init__(self, np_epoch, logger=None, leave_head=False):
         utils.file_op.store_attr(self, locals())
+        self.enc_frozen = True
 
     def before_fit(self):
-        self.cfg = self.L.kwargs['cfg']
-        self.freeze_enc = self.cfg.TRAIN.FREEZE_ENCODER > 0.
-        if self.freeze_enc: utils.common.unwrap_model(self.L.model).encoder.requires_grad_(False)
+        utils.nn.unwrap_model(self.L.model).encoder.requires_grad_(False)
+        if self.leave_head:
+            utils.nn.unwrap_model(self.L.model).encoder.model.head.requires_grad_(True)
+
 
     def before_epoch(self):
-        if self.freeze_enc and self.L.np_epoch > self.cfg.TRAIN.FREEZE_ENCODER:
-            self.freeze_enc = False
+        if self.enc_frozen and self.L.np_epoch > self.np_epoch:
+            self.enc_frozen = False
             self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
-            utils.common.unwrap_model(self.L.model).encoder.requires_grad_(True)
+            utils.nn.unwrap_model(self.L.model).encoder.requires_grad_(True)
 
 
 class TBMetricCB(Callback):

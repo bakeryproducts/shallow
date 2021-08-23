@@ -27,7 +27,7 @@ class ShardedPreloadingDataset:
 
         if num_replicas > 1:
             total_size = len(dataset) - len(dataset) % num_replicas # much pythonic
-            all_idxs = generate_fix_permuted_inidices(dataset, seed)
+            all_idxs = generate_fix_permuted_inidices(len(dataset), seed)
             self.chosen_idxs = all_idxs[rank:total_size:num_replicas]
         else:
             self.chosen_idxs = None
@@ -44,8 +44,8 @@ class ShardedPreloadingDataset:
         xx, yy = [], []
         for x,y,i in zip(xb,yb,idxs):
             if i in self.chosen_idxs:
-                xx.append(x)
-                yy.append(y)
+                xx.append(x.clone())
+                yy.append(y.clone())
         if not xx: raise EmptyBatchSelection
         return (xx,yy)
 
@@ -60,18 +60,30 @@ class ShardedPreloadingDataset:
         return X, Y
 
     def preload_data_torch_tensor(self, dl):
-        X, Y = None, None
+        #X, Y = None, None
+        X,Y = [],[]
         for batch_idx, item in enumerate(dl):
             try:
                 xb, yb = self.select_idxs(item, batch_idx)
-                if X is None:
-                    X = torch.zeros((len(dl) * self.bs, *xb[0].shape), dtype=xb[0].dtype)
-                    Y = torch.zeros((len(dl) * self.bs, *yb[0].shape), dtype=yb[0].dtype)
+                #xb = torch.stack(xb)
+                #yb = torch.stack(yb)
+                    #X = torch.zeros((len(dl) * self.bs, *xb[0].shape), dtype=xb[0].dtype)
+                    #Y = torch.zeros((len(dl) * self.bs, *yb[0].shape), dtype=yb[0].dtype)
 
             except EmptyBatchSelection: continue
+            X.extend(xb)
+            Y.extend(yb)
+            #if X is None:
+            #    X = xb
+            #    Y = yb
+            #else:
+            #    X = torch.vstack([X,xb])
+            #    Y = torch.hstack([Y,yb]) # yb 1dim, TODO fix
 
-            X[batch_idx * self.bs:(batch_idx + 1) * self.bs] = xb
-            Y[batch_idx * self.bs:(batch_idx + 1) * self.bs] = yb
+            #X[batch_idx * self.bs:(batch_idx + 1) * self.bs] = torch.stack(xb)
+            #Y[batch_idx * self.bs:(batch_idx + 1) * self.bs] = torch.stack(yb)
+        X = torch.stack(X)
+        Y = torch.stack(Y)
         del dl
         return X, Y
 
