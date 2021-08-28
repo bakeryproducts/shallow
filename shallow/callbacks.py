@@ -12,7 +12,9 @@ class Callback:
     _default = 'L'
     logger = None
     def log_debug(self, *m): [self.logger.log("DEBUG", i) for i in m] if self.logger is not None else False
+    def log_warning(self, *m): [self.logger.log("WARNING", i) for i in m] if self.logger is not None else False
     def log_info(self, *m): [self.logger.log("INFO", i) for i in m] if self.logger is not None else False
+    def log_error(self, *m): [self.logger.log("ERROR", i) for i in m] if self.logger is not None else False
     def log_critical(self, *m): [self.logger.log("CRITICAL", i) for i in m] if self.logger is not None else False
 
 

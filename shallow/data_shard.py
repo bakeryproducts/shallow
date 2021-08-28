@@ -13,7 +13,7 @@ def generate_fix_permuted_inidices(n, seed):
 
 
 class ShardedPreloadingDataset:
-    def __init__(self, dataset, num_proc=False, progress=None, seed=0, rank=0, num_replicas=1, to_tensor=False):
+    def __init__(self, dataset, num_proc=False, progress=None, seed=0, rank=0, num_replicas=1, to_tensor=False, prepr_fn=None):
         """
             Preloading data into processes with respect to process idxs. Can load into one huge tensor, or python list
             WITH TO_TENSOR LAST UNFUL BATCH WILL BE DROPPED
@@ -32,6 +32,7 @@ class ShardedPreloadingDataset:
         else:
             self.chosen_idxs = None
 
+        self.prepr_fn = prepr_fn if prepr_fn is not None else lambda x:x
         preloader = self.preload_data_torch_tensor if to_tensor else self.preload_data
         self.data, self.labels = preloader(dl)
 
@@ -44,7 +45,9 @@ class ShardedPreloadingDataset:
         xx, yy = [], []
         for x,y,i in zip(xb,yb,idxs):
             if i in self.chosen_idxs:
-                xx.append(x.clone())
+                tx = x.clone()
+                tx = self.prepr_fn(tx)
+                xx.append(tx)
                 yy.append(y.clone())
         if not xx: raise EmptyBatchSelection
         return (xx,yy)
