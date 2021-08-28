@@ -11,11 +11,11 @@ class CancelFitException(Exception): pass
 class Callback:
     _default = 'L'
     logger = None
-    def log_debug(self, *m): [self.logger.log("DEBUG", i) for i in m] if self.logger is not None else False
-    def log_warning(self, *m): [self.logger.log("WARNING", i) for i in m] if self.logger is not None else False
-    def log_info(self, *m): [self.logger.log("INFO", i) for i in m] if self.logger is not None else False
-    def log_error(self, *m): [self.logger.log("ERROR", i) for i in m] if self.logger is not None else False
-    def log_critical(self, *m): [self.logger.log("CRITICAL", i) for i in m] if self.logger is not None else False
+    def log_debug(self, *m): [self.logger.debug(i) for i in m] if self.logger is not None else False
+    def log_warning(self, *m): [self.logger.warning(i) for i in m] if self.logger is not None else False
+    def log_info(self, *m): [self.logger.info(i) for i in m] if self.logger is not None else False
+    def log_error(self, *m): [self.logger.error(i) for i in m] if self.logger is not None else False
+    def log_critical(self, *m): [self.logger.critical(i) for i in m] if self.logger is not None else False
 
 
 class ParamSchedulerCB(Callback):
@@ -115,7 +115,7 @@ class FrozenEncoderCB(Callback):
     def before_fit(self):
         utils.nn.unwrap_model(self.L.model).encoder.requires_grad_(False)
         if self.leave_head:
-            utils.nn.unwrap_model(self.L.model).encoder.model.head.requires_grad_(True)
+            utils.nn.unwrap_model(self.L.model).encoder.model.classifier.requires_grad_(True)
 
 
     def before_epoch(self):
@@ -198,17 +198,18 @@ class TBPredictionsCB(Callback):
         self.writer.flush()
 
     def after_epoch(self):
-        if not self.L.model.training or self.L.n_epoch % self.step ==0:
+        if not self.L.model.training or self.L.n_epoch % self.step == 0:
             self.process_write_predictions()
-        
+
 
 class TrainCB(Callback):
-    def __init__(self, batch_read=lambda x: x, logger=None): 
+    def __init__(self, batch_read=lambda x: x, logger=None):
         utils.file_op.store_attr(self, locals())
 
     @utils.call.on_train
     def after_epoch(self): pass
-    def before_fit(self): 
+
+    def before_fit(self):
         self.cfg = self.L.kwargs['cfg']
         self.amp = self.cfg.TRAIN.AMP
         if self.amp: self.amp_scaler = torch.cuda.amp.GradScaler()
@@ -217,7 +218,7 @@ class TrainCB(Callback):
     def before_epoch(self):
         if self.cfg.PARALLEL.DDP: self.L.dl.sampler.set_epoch(self.L.n_epoch)
         for i in range(len(self.L.opt.param_groups)):
-            self.L.opt.param_groups[i]['lr'] = self.L.lr  
+            self.L.opt.param_groups[i]['lr'] = self.L.lr 
 
     def train_step(self):
         batch = self.batch_read(self.L.batch)
@@ -299,45 +300,60 @@ class HooksCB(Callback):
     @utils.call.on_epoch_step
     def after_batch(self):
         if self.hooks.is_attached(): self.hooks.detach()
+
     @utils.call.on_epoch_step
     def after_epoch(self): self.do_once = True
 
 
 class Hook():
-    def __init__(self, m, f): self.m, self.f = m, f
-    def attach(self): self.hook = self.m.register_forward_hook(partial(self.f, self))
-    def detach(self): 
-        if hasattr(self, 'hook') :self.hook.remove()
-    def __del__(self): self.detach()
-        
+    def __init__(self, m, f):
+        self.m, self.f = m, f
+
+    def attach(self):
+        self.hook = self.m.register_forward_hook(partial(self.f, self))
+
+    def detach(self):
+        if hasattr(self, 'hook'): self.hook.remove()
+
+    def __del__(self):
+        self.detach()
+
+
 class Hooks(utils.file_op.ListContainer):
-    def __init__(self, ms, f): super().__init__([Hook(m, f) for m in ms])
+    def __init__(self, ms, f):
+        super().__init__([Hook(m, f) for m in ms])
+
     def __enter__(self, *args):
         self.attach()
         return self
-    def __exit__ (self, *args): self.detach()
-    def __del__(self): self.detach()
+
+    def __exit__(self, *args):
+        self.detach()
+
+    def __del__(self):
+        self.detach()
 
     def __delitem__(self, i):
         self[i].detach()
         super().__delitem__(i)
-    
+
     def attach(self):
         for h in self: h.attach()
-        
+
     def detach(self):
         for h in self: h.detach()
-    
+
     def is_attached(self): return hasattr(self[0], 'hook')
-            
+
+
 def get_layers(model, conv=False, convtrans=False, lrelu=False, relu=False, bn=False, verbose=False):
     layers = []
     for m in model.modules():
-        if isinstance(m, torch.nn.Conv2d): 
+        if isinstance(m, torch.nn.Conv2d):
             if conv: layers.append(m)
-        if isinstance(m, torch.nn.ConvTranspose2d): 
+        if isinstance(m, torch.nn.ConvTranspose2d):
             if convtrans: layers.append(m)
-        elif isinstance(m, torch.nn.LeakyReLU): 
+        elif isinstance(m, torch.nn.LeakyReLU):
             if lrelu: layers.append(m)
         elif isinstance(m, torch.nn.ReLU):
             if relu: layers.append(m)
@@ -346,14 +362,16 @@ def get_layers(model, conv=False, convtrans=False, lrelu=False, relu=False, bn=F
         else:
             if verbose: print(m)
     return layers
-            
+
+
 def append_stats(hook, mod, inp, outp, bins=100, vmin=0, vmax=0):
     if not hasattr(hook,'stats'): hook.stats = ([],[],[])
     means,stds,hists = hook.stats
     means.append(outp.data.mean().cpu())
     stds .append(outp.data.std().cpu())
     hists.append(outp.data.cpu().histc(bins,vmin,vmax))
-        
+
+
 def append_stats_buffered(hook, mod, inp, outp, device=torch.device('cpu'), bins=100, vmin=0, vmax=0):
     if not hasattr(hook,'stats'): hook.stats = (utils.common.TorchBuffer(shape=(1,), device=device),
                                                 utils.common.TorchBuffer(shape=(1,), device=device),

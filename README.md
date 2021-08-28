@@ -8,4 +8,5 @@
     configer update (FEATURES)
     launch with sharded extensions
     add hydra launcher
+    Freezer kwargs params 
 
