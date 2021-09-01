@@ -43,34 +43,36 @@ class SetupLearnerCB(Callback):
 
 class LRFinderCB(Callback):
     def before_fit(self):
-        self.losses,self.lrs = [],[]
+        self.losses, self.lrs = [], []
         self.learner.lr = 1e-6
-            
+
     def before_batch(self):
         if not self.model.training: return
         self.learner.lr *= 1.2
         print(self.lr)
-        
+
     def after_batch(self):
         if not self.model.training: return
         if self.lr > 1 or torch.isnan(self.loss): raise CancelFitException
         self.losses.append(self.loss.item())
         self.lrs.append(self.lr)
-        
-        
+
+
 class TimerCB(Callback):
     def __init__(self, Timer=None, mode_train=False, logger=None):
         self.logger = logger
         self.mode_train = mode_train
-        self.perc=90
+        self.perc = 90
         if Timer is None: Timer = meters.StopwatchMeter
         self.batch_timer = Timer()
         self.epoch_timer = Timer()
-    
-    def _before_batch(self): 
+
+    def _before_batch(self):
         if self.L.model.training == self.mode_train: self.batch_timer.start()
+
     def before_epoch(self):
         if self.L.model.training == self.mode_train: self.epoch_timer.start()
+
     def _after_batch(self):
         if self.L.model.training == self.mode_train: self.batch_timer.stop()
 
@@ -78,12 +80,16 @@ class TimerCB(Callback):
         if self.L.model.training == self.mode_train:
             self.epoch_timer.stop()
             bs, es = self.L.dl.batch_size, len(self.L.dl)
-            if bs is None: bs = -1
-            self.log_info(f'\t[E {self.L.n_epoch}/{self.L.total_epochs}]: {self.epoch_timer.last: .3f} s,'+
-                     f'{bs * es/self.epoch_timer.last: .3f} im/s; ')
-                     #f'batch {self.batch_timer.avg: .3f} s'   )    
+            if bs is None:
+                try:
+                    bs = self.L.kwargs['cfg'].TRAIN.BATCH_SIZE
+                except:
+                    bs = -1
+
+            self.log_info(f'\t[E {self.L.n_epoch} / {self.L.total_epochs}]: {self.epoch_timer.last: .3f} s,' + f'{bs * es/self.epoch_timer.last: .3f} im/s; ')
+            #f'batch {self.batch_timer.avg: .3f} s'   )
             self.batch_timer.reset()
-    
+
     def after_fit(self):
         if self.L.model.training == self.mode_train:
             et = self.epoch_timer
