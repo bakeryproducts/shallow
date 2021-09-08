@@ -1,4 +1,5 @@
 import os
+import functools
 
 import torch
 import numpy as np
@@ -44,30 +45,33 @@ class TorchBuffer:
         self.enlarge_factor = 2
         self.device = device
         self.buffer = torch.zeros((self.max_len, *self.shape)).to(self.device)
-        
+
     def enlarge_buffer(self):
         self.max_len = int(self.max_len * self.enlarge_factor)
         #print(f'BUFFER GROWS TO {self.max_len}')
         self.new_buffer = torch.zeros((self.max_len, *self.shape)).to(self.device)
         self.new_buffer[:self.count] = self.buffer[:self.count]
         self.buffer = self.new_buffer
-        
+
     def push(self, t):
         if self.count > .9 * self.max_len: self.enlarge_buffer()
         self.buffer[self.count,...] = t
         self.count += 1
-       
+
     @property
     def data(self): return self.buffer[:self.count]
+
     def reset(self):
-        self.count=0
+        self.count = 0
         self.buffer.zero_()
-        
+
+
 def fig_to_array(fig):
     fig.canvas.draw()
     data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    data = data.reshape(fig.canvas.get_width_height()[::-1]+ (3,))
+    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
     return data
+
 
 def check_field_is_none(base, name):
     field = base.get(name, None)
@@ -75,9 +79,47 @@ def check_field_is_none(base, name):
 
     if isinstance(field, dict):
         for _, val in field.items():
-            if val == (0,) or val == '': return True 
+            if val == (0,) or val == '': return True
     elif isinstance(field, list):
-        if field == (0,) and val == '': return True 
+        if field == (0,) and val == '': return True
 
     return False
 
+
+def return_first_call(func):
+    value = None
+
+    @functools.wraps(func)
+    def wrapper_decorator(*args, **kwargs):
+        nonlocal value
+        if value is None:
+            value = func(*args, **kwargs)
+            func.value = value
+            func._clear = _clear
+        return value
+
+    def _clear():
+        nonlocal value
+        value = None
+
+    return wrapper_decorator
+
+
+def run_once(func):
+    callers = {}
+
+    @functools.wraps(func)
+    def wrapper_decorator(*args, **kwargs):
+        nonlocal callers
+        caller = args[0]
+
+        if caller not in callers:
+            value = func(*args, **kwargs)
+            callers[caller] = value
+            func._clear = _clear
+        return callers[caller]
+
+    def _clear():
+        nonlocal callers
+        callers = {}
+    return wrapper_decorator
