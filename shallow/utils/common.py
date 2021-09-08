@@ -106,7 +106,12 @@ def return_first_call(func):
 
 
 def run_once(func):
+    def _clear():
+        nonlocal callers
+        callers = {}
+
     callers = {}
+    func._clear = _clear
 
     @functools.wraps(func)
     def wrapper_decorator(*args, **kwargs):
@@ -116,10 +121,6 @@ def run_once(func):
         if caller not in callers:
             value = func(*args, **kwargs)
             callers[caller] = value
-            func._clear = _clear
         return callers[caller]
 
-    def _clear():
-        nonlocal callers
-        callers = {}
     return wrapper_decorator
