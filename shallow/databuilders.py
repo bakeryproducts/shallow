@@ -123,7 +123,6 @@ def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['
         'MULTIPLY':data.MultiplyDataset,
         'CACHING':data.CachingDataset,
     }
-    # TODO create_datasets should take fold_id as an input
     datasets = create_datasets(cfg, predefined_datasets, dataset_types, current_fold_id=fold_id)
 
     if fold_id is not None:
