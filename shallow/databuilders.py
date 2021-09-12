@@ -57,7 +57,7 @@ def build_transform_fact_example():
     return transform_factory
 
 
-def create_datasets(cfg, all_datasets, dataset_types):
+def create_datasets(cfg, all_datasets, dataset_types, current_fold_id=None):
     """
         Joins lists of datasets with TRAIN, VALID, ... types into concated datasets:
             {
@@ -79,6 +79,7 @@ def create_datasets(cfg, all_datasets, dataset_types):
             assert check_field_is_none(data_field, "DATASETS")
             datasets = {}
             for fold_id, fold_datasets_ids in data_field.FOLDS.items():
+                if current_fold_id is not None and  current_fold_id != fold_id: continue
                 if fold_datasets_ids == (0,): continue
                 fold_datasets = [all_datasets[fold_dataset_id] for fold_dataset_id in fold_datasets_ids]
                 ds = TorchConcatDataset(fold_datasets) if len(fold_datasets) > 1 else fold_datasets[0]
@@ -123,7 +124,7 @@ def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['
         'CACHING':data.CachingDataset,
     }
     # TODO create_datasets should take fold_id as an input
-    datasets = create_datasets(cfg, predefined_datasets, dataset_types)
+    datasets = create_datasets(cfg, predefined_datasets, dataset_types, current_fold_id=fold_id)
 
     if fold_id is not None:
         # fold mode, fold_id from cfg, F0, F1, ...
