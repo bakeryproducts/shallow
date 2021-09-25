@@ -124,9 +124,10 @@ def parse_model_path(p):
     return int(epoch[1:])
 
 
-def get_last_model_name(src, after_epoch=False):
+def get_last_model_name(src, after_epoch=False, keyword=''):
     # assumes that model name is of type e500_blabla.pth, sorted by epoch #500
     model_names = list(Path(src).glob('*.pth'))
+    if keyword: model_names = [m for m in model_names if keyword in str(m.name)]
     assert model_names != [], f'No valid models at init path {src}'
 
     res = []
