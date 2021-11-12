@@ -1,15 +1,9 @@
-import os
-import yaml
 from pathlib import Path
 from functools import lru_cache, partial
 
-import cv2
 import torch
-import numpy as np
 from PIL import Image
-from tqdm.auto import tqdm
 import albumentations as albu
-from torch.utils.data import DataLoader
 from torch.utils.data.dataset import ConcatDataset as ConcatDataset
 
 
@@ -21,7 +15,7 @@ class Dataset:
         _files = self.root.rglob(self.pattern) if recursive else self.root.glob(self.pattern)
         self.files = sorted(list(_files))
         self._is_empty('There is no matching files!')
-        
+
     def apply_filter(self, filter_fn):
         self.files = filter_fn(self.files)
         self._is_empty()
@@ -33,37 +27,42 @@ class Dataset:
     def process_item(self, item): return item
 #     def __add__(self, other):
 #         return ConcatDataset([self, other])
-    
+
+
 class ImageDataset(Dataset):
     def load_item(self, idx):
         img_path = self.files[idx]
         img = Image.open(str(img_path))
         return img
-    
+
+
 class PairDataset:
     def __init__(self, ds1, ds2):
         self.ds1, self.ds2 = ds1, ds2
         self.check_len()
-    
+
     def __len__(self): return len(self.ds1)
     def check_len(self): assert len(self.ds1) == len(self.ds2)
-    
+
     def __getitem__(self, idx):
-        return self.ds1.__getitem__(idx), self.ds2.__getitem__(idx) 
-    
+        return self.ds1.__getitem__(idx), self.ds2.__getitem__(idx)
+
+
 class FoldDataset:
     def __init__(self, dataset, idxs):
         self.dataset = dataset
         self.idxs = idxs
+
     def __len__(self): return len(self.idxs)
     def __getitem__(self, idx): return self.dataset[self.idxs[idx]]
-    
-class TransformDataset:
+
+
+class AugDataset:
     def __init__(self, dataset, transforms, is_masked=False):
         self.dataset = dataset
         self.transforms = albu.Compose([]) if transforms is None else transforms
         self.is_masked = is_masked
-    
+
     def __getitem__(self, idx):
         item = self.dataset.__getitem__(idx)
         if self.is_masked:
@@ -72,10 +71,11 @@ class TransformDataset:
             return augmented["image"], augmented["mask"]
         else:
             return self.transforms(image=item[0])['image']
-    
+
     def __len__(self):
         return len(self.dataset)
-    
+
+
 class MultiplyDataset:
     def __init__(self, dataset, rate):
         if rate > 1:
@@ -85,32 +85,33 @@ class MultiplyDataset:
             self.dataset = _dataset
         else:
             self.dataset = dataset
-        
+
     def __getitem__(self, idx):
         return self.dataset.__getitem__(idx)
-    
-    def __len__(self):
-        return len(self.dataset)
-    
-class CachingDataset:
-    def __init__(self, dataset):
-        self.dataset = dataset
-            
-    @lru_cache(maxsize=None)
-    def __getitem__(self, idx):
-        return self.dataset.__getitem__(idx)
-    
+
     def __len__(self):
         return len(self.dataset)
 
-    
+
+class CachingDataset:
+    def __init__(self, dataset):
+        self.dataset = dataset
+
+    @lru_cache(maxsize=None)
+    def __getitem__(self, idx):
+        return self.dataset.__getitem__(idx)
+
+    def __len__(self):
+        return len(self.dataset)
+
+
 class PreloadingDataset:
     def __init__(self, dataset, num_proc=False, progress=None):
         self.dataset = dataset
         self.num_proc = num_proc
         self.progress = progress
         self.data = self.preload_data_torch()
-        
+
     def preload_data_torch(self):
         dl = torch.utils.data.DataLoader(self.dataset, batch_size=64, drop_last=False, num_workers=self.num_proc, prefetch_factor=1)
         data = []
@@ -127,20 +128,20 @@ class PreloadingDataset:
 
         del dl
         return data
-    
+
     def __getitem__(self, idx):
         return self.data[idx]
-    
+
     def __len__(self):
         return len(self.data)
-    
-    
+
+
 class GpuPreloadingDataset:
     def __init__(self, dataset, devices):
         self.dataset = dataset
         self.devices = devices
         self.data = self.preload_data()
-        
+
     def preload_data(self):
         data = []
         for i in range(len(self.dataset)):
@@ -148,17 +149,17 @@ class GpuPreloadingDataset:
             item = item.to(self.devices[0])
             data.append((item, idx))
         return data
-    
+
     def __getitem__(self, idx):
         return self.data[idx]
-   
+
     def __len__(self):
         return len(self.dataset)
 
 
 def extend_dataset(ds, data_field, extend_factories):
     for k, factory in extend_factories.items():
-        field_val = data_field.get(k, None) 
+        field_val = data_field.get(k, None)
         if field_val:
             args = {}
             try: args.update(field_val)
@@ -166,35 +167,38 @@ def extend_dataset(ds, data_field, extend_factories):
             ds = factory(ds, **args)
     return ds
 
+
 def create_extensions(cfg, datasets, extend_factories):
     extended_datasets = {}
     for kind, ds in datasets.items():
         extended_datasets[kind] = extend_dataset(ds, cfg.DATA[kind], extend_factories)
     return extended_datasets
 
-def create_transforms(cfg, transform_factories, dataset_types=['TRAIN', 'VALID', 'TEST']):
-    transformers = {}
-    for dataset_type in dataset_types:
-        aug_type = cfg.TRANSFORMERS[dataset_type]['AUG']
-        args={
-            'aug_type':aug_type,
-            'transforms_cfg':cfg.TRANSFORMERS
-        }
-        if transform_factories[dataset_type]['factory'] is not None:
-            transform_getter = transform_factories[dataset_type]['transform_getter'](**args)
-            transformer = partial(transform_factories[dataset_type]['factory'], transforms=transform_getter)
-        else:
-            transformer = lambda x: x
-        transformers[dataset_type] = transformer
-    return transformers    
 
-def apply_transforms_datasets(datasets, transforms):
-    return {dataset_type:transforms[dataset_type](dataset) for dataset_type, dataset in datasets.items()}
+def create_augmentators(cfg, aug_factories, dataset_types=['TRAIN', 'VALID', 'TEST']):
+    augmentators = {}
+    for dataset_type in dataset_types:
+        aug_type = cfg.AUGS[dataset_type]['AUG']
+        args = {
+            'aug_type':aug_type,
+            'aug_cfg':cfg.AUGS
+        }
+        if aug_factories[dataset_type]['factory'] is not None:
+            aug_getter = aug_factories[dataset_type]['aug_getter'](**args)
+            augmentator = partial(aug_factories[dataset_type]['factory'], transforms=aug_getter)
+        else:
+            augmentator = lambda x: x
+        augmentators[dataset_type] = augmentator
+    return augmentators
+
+
+def apply_augs_datasets(datasets, augmentators):
+    return {dataset_type:augmentators[dataset_type](dataset) for dataset_type, dataset in datasets.items()}
 
 
 def count_folds(cfg):
     n = 0
-    if 'FOLDS' in cfg:
-        for fid, dataset_idxs in cfg.FOLDS.items():
+    if 'SPLITS' in cfg:
+        for sid, dataset_idxs in cfg.SPLITS.items():
             if dataset_idxs != (0,): n+=1
     return n

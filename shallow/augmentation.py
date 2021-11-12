@@ -13,11 +13,13 @@ BBOX_PARAMS = {
     "min_area":0.0,
     "min_visibility":0.0,
 }
-def composer(using_boxes): return albu.Compose if not using_boxes else partial(albu.Compose, bbox_params=albu.BboxParams(**BBOX_PARAMS)) 
+def composer(using_boxes): return albu.Compose if not using_boxes else partial(albu.Compose, bbox_params=albu.BboxParams(**BBOX_PARAMS))
+
 
 class ToTensor(albu_pt.ToTensorV2):
     def apply_to_mask(self, mask, **params): return torch.from_numpy(mask).permute((2,0,1))
     def apply(self, image, **params): return torch.from_numpy(image).permute((2,0,1))
+
 
 def augmentations_zoo(key, augmentor, p=1):
     """
@@ -51,12 +53,7 @@ def augmentations_zoo(key, augmentor, p=1):
 class AugmentatorBase:
     def __init__(self, cfg, compose):
         self.cfg = cfg
-        self.resize_h, self.resize_w = self.cfg.RESIZE
-        self.crop_h, self.crop_w = self.cfg.CROP
-        self.crop_val_h, self.crop_val_w = self.cfg.CROP_VAL if self.cfg.CROP_VAL is not (0, ) else self.cfg.CROP
         self.compose = compose
-        self.mean = self.cfg.MEAN
-        self.std = self.cfg.STD
         self.az = partial(augmentations_zoo, augmentor=self)
 
     def get_aug(self, kind):
@@ -66,12 +63,12 @@ class AugmentatorBase:
 
 
 
-def get_aug(Aug_class, aug_type, transforms_cfg, using_boxes=False, tag=False):
+def get_aug(Aug_class, aug_type, aug_cfg, using_boxes=False, tag=False):
     """ aug_type (str): one of `val`, `test`, `light`, `medium`, `hard`
         transforms_cfg (dict): part of main cfg
     """
     compose = albu.Compose #if not tag else partial(albu.Compose, additional_targets={'mask1':'mask', 'mask2':'mask'})
-    auger = Aug_class(cfg=transforms_cfg, compose=compose)
+    auger = Aug_class(cfg=aug_cfg, compose=compose)
     aug = auger.get_aug(aug_type)
     assert aug is not None, aug_type
     return  aug

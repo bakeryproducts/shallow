@@ -46,6 +46,7 @@ def init_datasets_example(cfg):
 
 
 def build_transform_fact_example():
+    # TODO fix rename transform for augs
     #def train_trans_get(*args, **kwargs): return augs.get_aug(*args, **kwargs)
     def train_trans_get(*args, **kwargs): return None
 
@@ -57,11 +58,11 @@ def build_transform_fact_example():
     return transform_factory
 
 
-def create_datasets(cfg, all_datasets, dataset_types, current_fold_id=None):
+def create_datasets(cfg, all_datasets, dataset_types, current_split_id=None):
     """
         Joins lists of datasets with TRAIN, VALID, ... types into concated datasets:
             {
-                "TRAIN": ConcatDataset1, | or in folds mode : "TRAIN": {'F0':[ds0], 'F1':[ds1,ds2,...]}
+                "TRAIN": ConcatDataset1, | or in splits mode : "TRAIN": {'S0':[ds0], 'S1':[ds1,ds2,...]}
                 "VALID": ConcatDataset2,
                 ...
             }
@@ -70,30 +71,30 @@ def create_datasets(cfg, all_datasets, dataset_types, current_fold_id=None):
     for dataset_type in dataset_types:
         data_field = cfg.DATA[dataset_type]
         if 'DATASETS' in data_field and not check_field_is_none(data_field, 'DATASETS'):
-            assert check_field_is_none(data_field, "FOLDS")
+            assert check_field_is_none(data_field, "SPLITS")
             datasets = [all_datasets[ds] for ds in data_field.DATASETS]
             ds = TorchConcatDataset(datasets) if len(datasets) > 1 else datasets[0]
             converted_datasets[dataset_type] = ds
 
-        elif 'FOLDS' in data_field and not check_field_is_none(data_field, "FOLDS"):
+        elif 'SPLITS' in data_field and not check_field_is_none(data_field, "SPLITS"):
             assert check_field_is_none(data_field, "DATASETS")
             datasets = {}
-            for fold_id, fold_datasets_ids in data_field.FOLDS.items():
-                if current_fold_id is not None and  current_fold_id != fold_id: continue
-                if fold_datasets_ids == (0,): continue
-                fold_datasets = [all_datasets[fold_dataset_id] for fold_dataset_id in fold_datasets_ids]
-                ds = TorchConcatDataset(fold_datasets) if len(fold_datasets) > 1 else fold_datasets[0]
-                datasets[fold_id] = ds
+            for split_id, split_datasets_ids in data_field.SPLITS.items():
+                if current_split_id is not None and  current_split_id != split_id: continue
+                if split_datasets_ids == (0,): continue
+                split_datasets = [all_datasets[split_dataset_id] for split_dataset_id in split_datasets_ids]
+                ds = TorchConcatDataset(split_datasets) if len(split_datasets) > 1 else split_datasets[0]
+                datasets[split_id] = ds
 
             converted_datasets[dataset_type] = datasets
         else:
             pass
-            #raise Exception('INVALID DATASET/FOLDS cfg')
+            #raise Exception('INVALID DATASET/SPLITS cfg')
 
     return converted_datasets
 
 
-def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['TRAIN', 'VALID', 'TEST'], num_proc=4, fold_id=None, ext_last=False):
+def build_datasets(cfg, aug_factory, predefined_datasets, dataset_types=['TRAIN', 'VALID', 'TEST'], num_proc=4, split_id=None, ext_last=False):
     """
         Creates dictionary :
         {
@@ -108,7 +109,7 @@ def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['
         All additional operations like preloading into memory, augmentations, etc
         is just another Dataset over existing one.
             preload_dataset = PreloadingDataset(MyDataset)
-            augmented_dataset = TransformDataset(preload_dataset)
+            augmented_dataset = AugDataset(preload_dataset)
     """
 
     extend_factories = {
@@ -123,17 +124,17 @@ def build_datasets(cfg, transform_factory, predefined_datasets, dataset_types=['
         'MULTIPLY':data.MultiplyDataset,
         'CACHING':data.CachingDataset,
     }
-    datasets = create_datasets(cfg, predefined_datasets, dataset_types, current_fold_id=fold_id)
+    datasets = create_datasets(cfg, predefined_datasets, dataset_types, current_split_id=split_id)
 
-    if fold_id is not None:
-        # fold mode, fold_id from cfg, F0, F1, ...
-        assert isinstance(datasets['TRAIN'], dict) # fold mode, train->folds->{f0:[], f1:[], f2:[]}
-        datasets['TRAIN'] = datasets['TRAIN'][fold_id]
-        datasets['VALID'] = datasets['VALID'][fold_id]
+    if split_id is not None:
+        # split mode, split_id from cfg, S0, S1, ...
+        assert isinstance(datasets['TRAIN'], dict) # split mode, train->splits->{s0:[], s1:[], s2:[]}
+        datasets['TRAIN'] = datasets['TRAIN'][split_id]
+        datasets['VALID'] = datasets['VALID'][split_id]
 
     if not ext_last: datasets = data.create_extensions(cfg, datasets, extend_factories)
-    transforms = data.create_transforms(cfg, transform_factory, dataset_types)
-    datasets = data.apply_transforms_datasets(datasets, transforms)
+    augs = data.create_augmentators(cfg, aug_factory, dataset_types)
+    datasets = data.apply_augs_datasets(datasets, augs)
     if ext_last: datasets = data.create_extensions(cfg, datasets, extend_factories)
     return datasets
 
