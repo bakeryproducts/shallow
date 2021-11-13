@@ -122,7 +122,20 @@ class PreloadingDataset:
                 xb, yb = item
                 for x,y in zip(xb.numpy(), yb.numpy()):
                     data.append([x,y])
+            elif isinstance(item, dict):
+                ds = [{} for _ in range(len(list(item.values())[0]))]
+
+                for k, vs in item.items():
+                    for i, v in enumerate(vs):
+                        try:
+                            ds[i][k] = v.numpy()
+                        except:
+                            ds[i][k] = v
+                for d in ds:
+                    data.append(d)
+
             else:
+                # print(item)
                 for x in item.numpy():
                     data.append(x)
 

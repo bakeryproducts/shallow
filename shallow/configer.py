@@ -31,7 +31,7 @@ class Transformers:
 @dataclass
 class _BaseData:
     DATASETS: List[str] = field(default_factory=lambda: [])
-    FOLDS: Dict[str, Any] = field(default_factory=lambda: dict())
+    SPLITS: Dict[str, Any] = field(default_factory=lambda: dict())
     GPU_PRELOAD: bool = False
     PRELOAD: bool = False
     MULTIPLY: Dict[str, Any] = field(default_factory=lambda: dict(rate=0))
@@ -76,8 +76,8 @@ class Train:
     NUM_WORKERS: int = 1
     EPOCH_COUNT: int = 0
     BATCH_SIZE: int = 0
-    NUM_FOLDS: int = 0
-    FOLD_ID: str = ''
+    NUM_SPLITS: int = 0
+    SPLIT_ID: str = ''
     SAVE_STEP: float = 1.
     SCALAR_STEP: int = 1
     TB_STEP: int = 1
