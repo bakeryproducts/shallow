@@ -19,12 +19,12 @@ def denorm(images, mean=(0.46454108, 0.43718538, 0.39618185), std=(0.23577851, 0
     return images
 
 
-def st(t):
+def st(t, tol=3):
     """
         shape, dtype, min, max, mean, std
     """
-
-    return t.shape, t.dtype, t.min(), t.max(), t.mean(), t.std()
+    stats = t.min(), t.max(), t.mean(), t.std()
+    return list(t.shape), t.dtype, [round(i.tolist(), tol) for i in stats]
 
 
 def set_cuda_devices(gpu_idx):
