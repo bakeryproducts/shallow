@@ -145,8 +145,9 @@ def build_dataloaders(cfg, datasets, **kwargs):
         dls[kind] = build_dataloader(cfg, dataset, kind, **kwargs)
     return dls
 
+
 def build_dataloader(cfg, dataset, mode, **kwargs):
-    sampler = None 
+    sampler = None
 
     if cfg.PARALLEL.DDP:
         if sampler is None:
@@ -165,5 +166,3 @@ def build_dataloader(cfg, dataset, mode, **kwargs):
         sampler=sampler,
         **kwargs)
     return dl
-
-

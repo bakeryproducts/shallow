@@ -1,4 +1,5 @@
 from pathlib import Path
+from joblib import Parallel, delayed
 from functools import lru_cache, partial
 
 import torch
@@ -110,7 +111,23 @@ class PreloadingDataset:
         self.dataset = dataset
         self.num_proc = num_proc
         self.progress = progress
-        self.data = self.preload_data_torch()
+        # self.data = self.preload_data_torch()
+        self.data = self.preload_data_joblib()
+
+    def get_some(self, dataset, sub_idxs):
+        return [dataset[i] for i in sub_idxs]
+
+    def preload_data_joblib(self):
+        l = len(self.dataset)
+        idxs = range(l)
+        n = l // self.num_proc
+        splits = [idxs[i:i + n] for i in range(0, len(idxs), n)]
+        jobs = []
+        for s in splits:
+            jobs.append(delayed(self.get_some)(self.dataset,s))
+        data = Parallel(n_jobs=self.num_proc)(jobs)
+        data = [i for d in data for i in d]
+        return data
 
     def preload_data_torch(self):
         dl = torch.utils.data.DataLoader(self.dataset, batch_size=64, drop_last=False, num_workers=self.num_proc, prefetch_factor=1)
