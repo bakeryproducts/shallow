@@ -107,7 +107,7 @@ class CachingDataset:
 
 
 class PreloadingDataset:
-    def __init__(self, dataset, num_proc=False, progress=None):
+    def __init__(self, dataset, num_proc=1, progress=None):
         self.dataset = dataset
         self.num_proc = num_proc
         self.progress = progress

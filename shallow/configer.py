@@ -17,6 +17,7 @@ class Transformers:
     TRAIN: _BaseTransformers = _BaseTransformers(AUG='train')
     VALID: _BaseTransformers = _BaseTransformers(AUG='valid')
     TEST: _BaseTransformers = _BaseTransformers(AUG='test')
+    UNSUPERVISED: _BaseTransformers = _BaseTransformers(AUG='unsupervised')
 
     MEAN: List[float] = field(default_factory=lambda: [0,0,0])
     STD: List[float] =  field(default_factory=lambda: [1,1,1])
@@ -42,6 +43,7 @@ class Data:
     TRAIN: _BaseData = _BaseData()
     VALID: _BaseData = _BaseData()
     TEST : _BaseData = _BaseData()
+    UNSUPERVISED : _BaseData = _BaseData()
 
 
 @dataclass

@@ -114,7 +114,7 @@ def build_datasets(cfg, aug_factory, predefined_datasets, dataset_types=['TRAIN'
 
     extend_factories = {
         'PRELOAD':partial(data.PreloadingDataset, num_proc=num_proc, progress=tqdm),
-        'PRELOAD_SHARDED':partial(data_shard.ShardedPreloadingDataset,
+        'PRELOAD_SHARDED':partial(data_shard.ShardedPreloadingDatasetCPU,
                                   num_proc=num_proc,
                                   progress=tqdm,
                                   seed=cfg.TRAIN.SEED,
