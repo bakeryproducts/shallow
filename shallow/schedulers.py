@@ -1,9 +1,11 @@
 import numpy as np
 from functools import partial
 
+
 def annealer(f):
     def _inner(start, end): return partial(f, start, end)
     return _inner
+
 
 @annealer
 def sched_lin(start, end, pos): return start + pos*(end-start)
@@ -14,11 +16,12 @@ def sched_const(start, end, pos):  return start
 @annealer
 def sched_exp(start, end, pos): return start * (end/start) ** pos
 
+
 def combine_scheds(scheds):
     pcts, fscheds = [], []
     for s in scheds: pcts.append(s[0]); fscheds.append(s[1])
 
-    assert sum(pcts) == 1.
+    assert np.allclose(sum(pcts) , 1), pcts
     pcts = np.array([0] + pcts)
     assert (pcts >= 0).all()
     pcts = np.cumsum(pcts, 0)

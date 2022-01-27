@@ -114,21 +114,19 @@ class MemChLastCB(Callback):
 
 
 class FrozenEncoderCB(Callback):
-    def __init__(self, np_epoch, logger=None, leave_head=False):
+    def __init__(self, np_epoch, encoder, logger=None, leave_head=False):
         utils.file_op.store_attr(self, locals())
         self.enc_frozen = True
 
     def before_fit(self):
-        utils.nn.unwrap_model(self.L.model).encoder.requires_grad_(False)
-        if self.leave_head:
-            utils.nn.unwrap_model(self.L.model).encoder.model.classifier.requires_grad_(True)
-
+        # utils.nn.unwrap_model(self.L.model).encoder.requires_grad_(False)
+        self.encoder.requires_grad_(False)
 
     def before_epoch(self):
         if self.enc_frozen and self.L.np_epoch > self.np_epoch:
             self.enc_frozen = False
-            self.log_debug(f'UNFREEZING ENCODER at {self.L.np_epoch}')
-            utils.nn.unwrap_model(self.L.model).encoder.requires_grad_(True)
+            self.log_warning(f'UNFREEZING ENCODER at {self.L.np_epoch}')
+            self.encoder.requires_grad_(True)
 
 
 class TBMetricCB(Callback):

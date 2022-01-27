@@ -72,5 +72,3 @@ def get_aug(Aug_class, aug_type, aug_cfg, using_boxes=False, tag=False):
     aug = auger.get_aug(aug_type)
     assert aug is not None, aug_type
     return  aug
-
-

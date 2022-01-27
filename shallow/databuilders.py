@@ -94,7 +94,7 @@ def create_datasets(cfg, all_datasets, dataset_types, current_split_id=None):
     return converted_datasets
 
 
-def build_datasets(cfg, aug_factory, predefined_datasets, dataset_types=['TRAIN', 'VALID', 'TEST'], num_proc=4, split_id=None, ext_last=False):
+def build_datasets(cfg, aug_factory, predefined_datasets, dataset_types=['TRAIN', 'VALID', 'TEST'], num_proc=4, split_id=None, extend=True, ext_last=False):
     """
         Creates dictionary :
         {
@@ -128,14 +128,21 @@ def build_datasets(cfg, aug_factory, predefined_datasets, dataset_types=['TRAIN'
 
     if split_id is not None:
         # split mode, split_id from cfg, S0, S1, ...
-        assert isinstance(datasets['TRAIN'], dict) # split mode, train->splits->{s0:[], s1:[], s2:[]}
-        datasets['TRAIN'] = datasets['TRAIN'][split_id]
-        datasets['VALID'] = datasets['VALID'][split_id]
+        # assert isinstance(datasets['TRAIN'], dict) # split mode, train->splits->{s0:[], s1:[], s2:[]}
+        # datasets['TRAIN'] = datasets['TRAIN'][split_id]
+        # datasets['VALID'] = datasets['VALID'][split_id]
+        for k, dss in datasets.items():
+            try:
+                datasets[k] = dss[split_id]
+            except Exception as e:
+                print(e)
+                print(f'There is no such {split_id }in {k}')
 
-    if not ext_last: datasets = data.create_extensions(cfg, datasets, extend_factories)
+
+    if not ext_last and extend: datasets = data.create_extensions(cfg, datasets, extend_factories)
     augs = data.create_augmentators(cfg, aug_factory, dataset_types)
     datasets = data.apply_augs_datasets(datasets, augs)
-    if ext_last: datasets = data.create_extensions(cfg, datasets, extend_factories)
+    if ext_last and extend: datasets = data.create_extensions(cfg, datasets, extend_factories)
     return datasets
 
 

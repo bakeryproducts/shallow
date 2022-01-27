@@ -16,7 +16,7 @@ def generate_fix_permuted_inidices(n, seed):
 
 
 class ShardedPreloadingDatasetCPU:
-    def __init__(self, dataset, num_proc=False, progress=None, seed=0, rank=0, num_replicas=1, to_tensor=False, prepr_fn=None):
+    def __init__(self, dataset, num_proc=False, progress=None, seed=0, rank=0, num_replicas=1, joblib=False, prepr_fn=None):
         """
             Preloading data into processes with respect to process idxs. Can load into one huge tensor, or python list
             WITH TO_TENSOR LAST UNFUL BATCH WILL BE DROPPED
@@ -25,17 +25,18 @@ class ShardedPreloadingDatasetCPU:
         self.bs = 8 # preloading bs
         self.num_replicas = num_replicas
         self.num_proc = num_proc
-        drop_last = to_tensor
 
+        all_idxs = generate_fix_permuted_inidices(len(dataset), seed)
         if num_replicas > 1:
             total_size = len(dataset) - len(dataset) % num_replicas # much pythonic
-            all_idxs = generate_fix_permuted_inidices(len(dataset), seed)
             self.chosen_idxs = all_idxs[rank:total_size:num_replicas]
         else:
-            self.chosen_idxs = None
+            self.chosen_idxs = all_idxs
+        # print(rank, self.chosen_idxs[:8])
+        # print(rank, sum(self.chosen_idxs))
 
         self.prepr_fn = prepr_fn if prepr_fn is not None else lambda x:x
-        preloader = self.simple_read_tensor if to_tensor else self.simple_read
+        preloader = self.preload_data_joblib if joblib else self.simple_read
         self.data = preloader(progress)
         print('SHARDS LOADED')
 
@@ -51,14 +52,16 @@ class ShardedPreloadingDatasetCPU:
     def get_some(self, dataset, sub_idxs):
         return [dataset[i] for i in sub_idxs]
 
-    def preload_data_joblib(self, idxs):
+    def preload_data_joblib(self, progress):
+        idxs = self.chosen_idxs
         l = len(self.dataset)
-        n = l // self.num_proc
+        n = 200#l // self.num_proc
         splits = [idxs[i:i + n] for i in range(0, len(idxs), n)]
         jobs = []
         for s in splits:
             jobs.append(delayed(self.get_some)(self.dataset,s))
-        data = Parallel(n_jobs=self.num_proc)(jobs)
+
+        data = Parallel(n_jobs=self.num_proc, verbose=5)(jobs)
         data = [i for d in data for i in d]
         return data
 
