@@ -2,10 +2,11 @@ from shallow import utils
 
 
 class CancelFitException(Exception): pass
+class CancelEpochException(Exception): pass
 
 
 class Learner:
-    def __init__(self, model, opt, dls, loss_func, lr, cbs, batch_bar, epoch_bar, val_rate=1, **kwargs):
+    def __init__(self, model, opt, dls, loss_func, lr, cbs, batch_bar, epoch_bar, val_rate, **kwargs):
         utils.file_op.store_attr(self, locals())
         for cb in self.cbs: cb.L = self
 
@@ -19,9 +20,11 @@ class Learner:
         self.model.training = train
         self.dl = self.dls.TRAIN if train else self.dls.VALID
         self('before_epoch')
-        for self.n_batch, self.batch in enumerate(self.batch_bar(self.dl)):
-            self.np_batch = self.n_batch / len(self.dl)
-            self.one_batch()
+        try:
+            for self.n_batch, self.batch in enumerate(self.batch_bar(self.dl)):
+                self.np_batch = self.n_batch / len(self.dl)
+                self.one_batch()
+        except CancelEpochException: pass
         self('after_epoch')
 
     def fit(self, total_epochs):
