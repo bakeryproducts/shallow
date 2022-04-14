@@ -53,7 +53,6 @@ def wrap_ddp(cfg,
              broadcast_buffers=True,
              find_unused_parameters=True):
     if sync_bn:
-        assert not cfg.TRAIN.TORCHSCRIPT
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     #logger.log('DEBUG', f'DDP wrapper, {model, cfg}')

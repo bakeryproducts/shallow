@@ -23,7 +23,11 @@ def _load_state(path, key):
     return state
 
 
-def load_state(m, path, k): m.load_state_dict(_load_state(path, k))
+def load_state(m, path, k, filt_fn=lambda x:x):
+    st = _load_state(path, k)
+    st = filt_fn(st)
+    m.load_state_dict(st, strict=False)
+
 def load_model_state(model, path): model.load_state_dict(_load_state(path, 'model_state'))
 def load_optim_state(optim, path): optim.load_state_dict(_load_state(path, 'optim_state'))
 def load_scaler_state(scaler, path): scaler.load_state_dict(_load_state(path, 'scaler_state'))
