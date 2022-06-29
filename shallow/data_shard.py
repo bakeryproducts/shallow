@@ -55,14 +55,17 @@ class ShardedPreloadingDatasetCPU:
     def preload_data_joblib(self, progress):
         idxs = self.chosen_idxs
         l = len(self.dataset)
+        # n = 200#l // self.num_proc
         n = 200#l // self.num_proc
         splits = [idxs[i:i + n] for i in range(0, len(idxs), n)]
         jobs = []
         for s in splits:
             jobs.append(delayed(self.get_some)(self.dataset,s))
+        # jobs.append(delayed(self.get_some)(self.dataset, idxs))
 
         data = Parallel(n_jobs=self.num_proc, verbose=5)(jobs)
         data = [i for d in data for i in d]
+        print(len(data))
         return data
 
 

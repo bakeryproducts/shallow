@@ -134,13 +134,13 @@ def cfg_init(get_nodes_fn, **kwargs):
         cs.store(**node)
 
 
-@hydra.main(config_path="configs", config_name="base")
-def main(cfg) -> None:
-    # Test cfg run
-    print(OmegaConf.to_yaml(cfg, resolve=True))
-    return cfg
+# @hydra.main(config_path="configs", config_name="base")
+# def main(cfg) -> None:
+#     # Test cfg run
+#     print(OmegaConf.to_yaml(cfg, resolve=True))
+#     return cfg
 
 
-if __name__ == '__main__':
-    cfg_init()
-    main()
+# if __name__ == '__main__':
+#     cfg_init()
+#     main()
