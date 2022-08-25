@@ -1,8 +1,6 @@
 from shallow import utils
 
-
-class CancelFitException(Exception): pass
-class CancelEpochException(Exception): pass
+from shallow.exceptions import CancelEpochException, CancelFitException
 
 
 class Learner:

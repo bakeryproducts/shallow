@@ -1,9 +1,6 @@
 from shallow import utils
 
-
-class CancelFitException(Exception): pass
-class CancelEpochException(Exception): pass
-
+from shallow.exceptions import CancelEpochException, CancelFitException
 
 class Learner:
     def __init__(self, model, opt, dls, loss_func, lr, cbs, batch_bar, epoch_bar, **kwargs):
