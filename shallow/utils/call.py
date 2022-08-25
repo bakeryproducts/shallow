@@ -27,6 +27,15 @@ def on_validation(f):
     return wrapper
 
 
+def on_mode(mode):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+            if args[0].L.mode == mode:
+                return function(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 def get_cb_by_instance(cbs, cls):
     for cb in cbs:
         if isinstance(cb, cls): return cb

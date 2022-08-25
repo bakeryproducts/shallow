@@ -70,9 +70,6 @@ class Hydra_Opt:
 
 @dataclass
 class Train:
-    MODEL: str = ''
-    LRS: List[float] = field(default_factory=lambda: [])
-    EMA: float = 0.
     AMP: bool = False
     GPUS: List[float] = field(default_factory=lambda: [0,])
     NUM_WORKERS: int = 1

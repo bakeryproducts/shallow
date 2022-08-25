@@ -19,9 +19,9 @@ class Callback:
 
 
 class ParamSchedulerCB(Callback):
-    def __init__(self, phase, pname, sched_func):
+    def __init__(self, phase, pname, sched_func): # before_fit, lr, lin_sch(start, end, pos)
         self.pname, self.sched_func = pname, sched_func
-        setattr(self, phase, self.set_param)
+        setattr(self, phase, self.set_param) # i.e. def before_epoch
 
     def set_param(self): setattr(self.L, self.pname, self.sched_func(self.L.np_epoch))
 
